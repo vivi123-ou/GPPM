@@ -1,0 +1,42 @@
+[
+  {
+    "id": "TC-001",
+    "title": "Đăng nhập thành công",
+    "type": "api",
+    "priority": "high",
+    "data_sets": [
+      {"name": "hop_le", "values": {"email": "user@demo.com", "password": "123456"}, "expected": "accept"}
+    ],
+    "steps": [
+      {"method": "POST", "path": "/api/login",
+       "body": {"email": "{{email}}", "password": "{{password}}"},
+       "expect": {"status": 200}}
+    ]
+  },
+  {
+    "id": "TC-002",
+    "title": "Đăng nhập với email rỗng bị từ chối",
+    "type": "api",
+    "priority": "high",
+    "data_sets": [
+      {"name": "email_rong", "values": {"email": "", "password": "123456"}, "expected": "reject"}
+    ],
+    "steps": [
+      {"method": "POST", "path": "/api/login",
+       "body": {"email": "{{email}}", "password": "{{password}}"},
+       "expect": {"status": 400}}
+    ]
+  },
+  {
+    "id": "TC-003",
+    "title": "Thêm sản phẩm vào giỏ hàng",
+    "type": "ui",
+    "priority": "medium",
+    "steps": [
+      {"action": "goto", "url": "/products"},
+      {"action": "click",
+       "target": {"testid": "add-to-cart-1", "role": "button", "name": "Thêm vào giỏ"}},
+      {"action": "assert_text", "target": {"testid": "cart-count"}, "expect": "1"}
+    ]
+  }
+]

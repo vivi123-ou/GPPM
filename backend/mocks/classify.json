@@ -1,0 +1,1 @@
+{"verdict": "app_bug", "explanation": "API trả 200 khi email rỗng, trong khi yêu cầu nói phải trả 400. Đây là lỗi validation phía server."}

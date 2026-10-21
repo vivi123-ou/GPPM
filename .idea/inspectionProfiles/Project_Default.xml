@@ -1,0 +1,26 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="langgraph" />
+          <option value="langgraph-checkpoint" />
+          <option value="langgraph-prebuilt" />
+          <option value="langgraph-sdk" />
+          <option value="ormsgpack" />
+          <option value="xxhash" />
+          <option value="contourpy" />
+          <option value="cycler" />
+          <option value="fonttools" />
+          <option value="kiwisolver" />
+          <option value="matplotlib" />
+          <option value="pandas" />
+          <option value="python-dateutil" />
+          <option value="seaborn" />
+          <option value="tzdata" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

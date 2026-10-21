@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>TestPilot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800" x-data="app()" x-init="load()">
+  <header class="bg-slate-900 text-white px-6 py-3 text-lg font-semibold">✈️ TestPilot</header>
+
+  <main class="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Cột trái: nhập yêu cầu + danh sách -->
+    <section class="space-y-4">
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="font-semibold mb-2">1. Nhập yêu cầu</h2>
+        <textarea x-model="reqText" rows="5" class="w-full border rounded p-2 text-sm"
+          placeholder="Dán user story hoặc API spec..."></textarea>
+        <button @click="generate()" :disabled="loading"
+          class="mt-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded">
+          <span x-text="loading ? 'Đang sinh...' : 'Sinh test'"></span>
+        </button>
+        <p x-show="error" x-text="error" class="text-red-600 text-sm mt-2"></p>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="font-semibold mb-2">2. Test cases (<span x-text="cases.length"></span>)</h2>
+        <template x-for="c in cases" :key="c.id">
+          <div @click="select(c)"
+               :class="selected && selected.id===c.id ? 'bg-blue-50 border-blue-400' : 'hover:bg-slate-50'"
+               class="border rounded p-2 mb-2 cursor-pointer flex justify-between items-center">
+            <div>
+              <span class="font-mono text-xs text-slate-500" x-text="c.id"></span>
+              <span class="ml-2" x-text="c.title"></span>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded"
+                  :class="c.type==='api' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'"
+                  x-text="c.type.toUpperCase()"></span>
+          </div>
+        </template>
+        <p x-show="!cases.length" class="text-sm text-slate-400">Chưa có test nào.</p>
+      </div>
+    </section>
+
+    <!-- Cột phải: xem/sửa JSON -->
+    <section class="bg-white rounded-lg shadow p-4" x-show="selected">
+      <h2 class="font-semibold mb-2">Chi tiết <span class="font-mono" x-text="selected?.id"></span></h2>
+      <textarea x-model="editText" rows="22" class="w-full border rounded p-2 font-mono text-xs"></textarea>
+      <div class="mt-2 flex gap-2">
+        <button @click="save()" class="bg-emerald-600 text-white px-4 py-2 rounded">Lưu</button>
+        <button @click="remove()" class="bg-red-600 text-white px-4 py-2 rounded">Xóa</button>
+      </div>
+      <p x-show="msg" x-text="msg" class="text-sm mt-2"></p>
+    </section>
+  </main>
+
+<script>
+function app() {
+  return {
+    reqText: '', cases: [], selected: null, editText: '',
+    loading: false, error: '', msg: '',
+
+    async load() {
+      const r = await fetch('/api/test-cases');
+      this.cases = await r.json();
+    },
+    async generate() {
+      this.loading = true; this.error = '';
+      try {
+        const r = await fetch('/api/requirements', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({text: this.reqText})
+        });
+        if (!r.ok) throw new Error((await r.json()).detail);
+        await this.load();
+      } catch (e) { this.error = e.message; }
+      this.loading = false;
+    },
+    select(c) {
+      this.selected = c; this.msg = '';
+      const {version, ...rest} = c;
+      this.editText = JSON.stringify(rest, null, 2);
+    },
+    async save() {
+      try {
+        const body = JSON.parse(this.editText);
+        const r = await fetch('/api/test-cases/' + this.selected.id, {
+          method: 'PUT', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        if (!r.ok) throw new Error(JSON.stringify((await r.json()).detail));
+        this.msg = '✅ Đã lưu'; await this.load();
+      } catch (e) { this.msg = '❌ ' + e.message; }
+    },
+    async remove() {
+      if (!confirm('Xóa test này?')) return;
+      await fetch('/api/test-cases/' + this.selected.id, {method: 'DELETE'});
+      this.selected = null; await this.load();
+    }
+  }
+}
+</script>
+</body>
+</html>

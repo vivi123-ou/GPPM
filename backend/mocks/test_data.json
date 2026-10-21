@@ -1,0 +1,5 @@
+[
+  {"name": "hop_le", "values": {"email": "user@demo.com"}, "expected": "accept"},
+  {"name": "email_rong", "values": {"email": ""}, "expected": "reject"},
+  {"name": "email_sai_dinh_dang", "values": {"email": "abc"}, "expected": "reject"}
+]

@@ -1,0 +1,2 @@
+{"target": {"testid": null, "role": "button", "name": "Thêm vào giỏ hàng", "css": null},
+ "reason": "Nút đã đổi tên từ 'Thêm vào giỏ' thành 'Thêm vào giỏ hàng', cùng role button."}
