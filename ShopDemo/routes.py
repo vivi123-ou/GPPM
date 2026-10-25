@@ -17,6 +17,10 @@ PRODUCTS = [
     ("galaxy-s24", "Galaxy S24", "Samsung", 18990000, 15, "6.2\" AMOLED · 256 GB · Galaxy AI", "📱", "#e5edff"),
     ("pixel-8", "Pixel 8", "Google", 14990000, 9, "6.2\" OLED · 128 GB · Camera AI", "📱", "#e6f3ea"),
     ("xiaomi-14", "Xiaomi 14", "Xiaomi", 16990000, 12, "6.36\" AMOLED · 256 GB · Leica", "📱", "#fff0e5"),
+    ("iphone-16-pro", "iPhone 16 Pro", "Apple", 28990000, 8, "6.3\" OLED · 256 GB · Camera Control", "📱", "#eeeae2"),
+    ("galaxy-z-flip6", "Galaxy Z Flip6", "Samsung", 24990000, 7, "6.7\" Foldable AMOLED · 256 GB · Galaxy AI", "📱", "#e5eafa"),
+    ("redmi-note-14-pro", "Redmi Note 14 Pro", "Xiaomi", 7990000, 20, "6.67\" AMOLED · 256 GB · 200 MP", "📱", "#f4e8e4"),
+    ("oppo-reno13", "OPPO Reno13", "OPPO", 13990000, 11, "6.59\" AMOLED · 256 GB · AI Portrait", "📱", "#e4eff0"),
 ]
 
 def connect() -> sqlite3.Connection:
@@ -151,6 +155,7 @@ def reset_shop():
     init_shop_db()
     with connect() as conn:
         conn.execute("DELETE FROM orders")
-        conn.execute("UPDATE products SET stock=CASE id WHEN 'iphone-15' THEN 18 WHEN 'galaxy-s24' THEN 15 WHEN 'pixel-8' THEN 9 WHEN 'xiaomi-14' THEN 12 END")
+        for product in PRODUCTS:
+            conn.execute("UPDATE products SET stock=? WHERE id=?", (product[4], product[0]))
         conn.execute("UPDATE bug_flags SET enabled=0")
     return {"ok": True, "message": "Demo Shop đã được đặt lại"}

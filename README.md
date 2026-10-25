@@ -20,7 +20,7 @@ TestPilot là ứng dụng hỗ trợ kiểm thử phần mềm theo yêu cầu.
 
 ### TVT MOBILE Demo Shop
 
-- Cửa hàng điện thoại với danh sách sản phẩm, giỏ hàng và thanh toán.
+- Cửa hàng điện thoại với 8 sản phẩm mẫu, giỏ hàng và thanh toán.
 - REST API có tài liệu OpenAPI tự sinh.
 - SQLite tự khởi tạo và nạp dữ liệu mẫu ở lần chạy đầu.
 - Bug flags có thể bật/tắt để mô phỏng lỗi nghiệp vụ và thay đổi giao diện.
@@ -158,7 +158,7 @@ Tắt lỗi và khôi phục dữ liệu demo:
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/shop/reset
 ```
 
-Các locator chính gồm `add-iphone-15`, `cart-button`, `customer-name`, `email`, `address` và `checkout-button`. Ảnh sản phẩm đặt trong `ShopDemo/static/images/`, đặt tên theo mã sản phẩm (ví dụ `iphone-15.jpg`, `galaxy-s24.jpg`). Shop tự dùng hình minh họa dự phòng nếu chưa có ảnh tương ứng. Có thể thêm banner ảnh hoặc GIF với tên `banner.gif` và logo shop với tên `logo.png` trong cùng thư mục. CSS và JavaScript nằm ở `ShopDemo/static/css/shop.css` và `ShopDemo/static/js/shop.js`. Có thể xem toàn bộ request/response schema của các API tại `/docs`.
+Các locator chính gồm `add-iphone-15`, `cart-button`, `customer-name`, `email`, `address` và `checkout-button`. Ảnh sản phẩm đặt trong `ShopDemo/static/images/`, đặt tên theo mã sản phẩm (ví dụ `iphone-15.jpg`, `galaxy-z-flip6.jpg`, `redmi-note-14-pro.jpg`). Shop tự dùng hình minh họa dự phòng nếu chưa có ảnh tương ứng. Có thể thêm banner ảnh hoặc GIF với tên `banner.gif` và logo shop với tên `logo.png` trong cùng thư mục. CSS và JavaScript nằm ở `ShopDemo/static/css/shop.css` và `ShopDemo/static/js/shop.js`. Có thể xem toàn bộ request/response schema của các API tại `/docs`.
 
 ## AI hiện tại
 
