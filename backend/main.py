@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from backend import ai_client
 from backend.db import get_conn, init_db
 from backend.models import TestCase
+from ShopDemo import router as demo_shop_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,6 +17,12 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="TestPilot", lifespan=lifespan)
+app.include_router(demo_shop_router)
+app.mount(
+    "/shop-assets",
+    StaticFiles(directory=Path(__file__).resolve().parent.parent / "ShopDemo" / "static"),
+    name="demo-shop-assets",
+)
 
 class RequirementIn(BaseModel):
     text: str
