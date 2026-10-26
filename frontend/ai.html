@@ -104,8 +104,22 @@
 
         <div x-show="mode === 'autopilot'" x-cloak class="mt-4">
           <p class="small max-w-2xl">TestPilot mở website bằng trình duyệt, thu thập các trang và thành phần giao diện, sau đó đề xuất
-            kịch bản kiểm thử end-to-end. Nếu hệ thống có OpenAPI, kịch bản API được tạo kèm. Chỉ áp dụng cho các trang không yêu cầu đăng nhập.</p>
-          <button @click="autopilot()" :disabled="busy || !info?.reachable" class="btn mt-4">Bắt đầu khám phá →</button>
+            kịch bản kiểm thử end-to-end (UI). Nếu hệ thống có OpenAPI, kịch bản API được tạo kèm.</p>
+
+          <div class="mt-4">
+            <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" x-model="needLogin"> Website yêu cầu đăng nhập</label>
+            <div x-show="needLogin" x-cloak class="grid sm:grid-cols-2 gap-2 mt-3">
+              <input x-model="loginUser" class="field" placeholder="Tài khoản thử nghiệm" autocomplete="off">
+              <input x-model="loginPass" type="password" class="field" placeholder="Mật khẩu" autocomplete="new-password">
+              <p class="label sm:col-span-2">Chỉ dùng tài khoản thử nghiệm. Mật khẩu không được gửi cho AI, chỉ dùng khi trình duyệt thực thi; được che khi xuất báo cáo.</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-5 mt-5">
+            <button @click="fullAuto()" :disabled="busy || !info?.reachable" class="btn">Tự động toàn bộ →</button>
+            <button @click="autopilot()" :disabled="busy || !info?.reachable" class="link text-sm">Chỉ khám phá</button>
+          </div>
+          <p class="label mt-2">Tự động toàn bộ: khám phá → tạo kịch bản → thực thi → phân tích nguyên nhân → tải báo cáo Excel.</p>
         </div>
 
         <div x-show="summary" x-cloak class="mt-5 border-l-2 pl-4 text-sm" style="border-color: var(--ink)" x-html="summary"></div>
@@ -135,12 +149,15 @@
             <h2 class="h2 mt-3">Kịch bản<sup class="count" x-text="'[' + visible().length + ']'"></sup></h2>
           </div>
           <label class="flex items-center gap-2 text-sm ml-2 cursor-pointer"><input type="checkbox" x-model="onlyThis"> Chỉ hệ thống đang chọn</label>
+          <label class="flex items-center gap-2 text-sm ml-2 cursor-pointer">
+            <input type="checkbox" :checked="allPicked()" :indeterminate="picked.length > 0 && !allPicked()" @change="toggleAll($event.target.checked)">
+            Chọn tất cả</label>
           <div class="ml-auto flex items-center gap-5">
             <button @click="exportCases()" class="link text-sm" :disabled="!visible().length">Excel <span class="arr">↓</span></button>
             <button @click="run()" :disabled="busy || !runnable().length" class="btn">Thực thi <span x-text="'(' + runnable().length + ')'"></span></button>
           </div>
         </div>
-        <p class="small mt-2" x-text="picked.length ? ('Đã chọn ' + picked.length + ' kịch bản.') : 'Chưa chọn kịch bản: thực thi toàn bộ kịch bản API trong danh sách.'"></p>
+        <p class="small mt-2" x-text="picked.length ? ('Đã chọn ' + picked.length + ' kịch bản.') : 'Chưa chọn kịch bản: thực thi toàn bộ kịch bản của hệ thống đang chọn (API và giao diện).'"></p>
         <div class="rows mt-4 max-h-[440px] overflow-auto scroll">
           <template x-for="c in visible()" :key="c.id">
             <div class="row" :class="picked.includes(c.id) && 'on'">
@@ -194,12 +211,40 @@
               </div>
               <template x-if="r.status === 'failed'">
                 <div class="mt-3 pl-2 space-y-2">
-                  <div class="term"><div class="term-body py-2 text-[12px]">
-                    <div><span class="m" :class="'m-' + (r.request?.method || '')" x-text="r.request?.method"></span>
-                      <span class="cmd" x-text="r.request?.path"></span>
-                      <span class="dim" x-text="'→ ' + (r.actual_status ?? '')"></span></div>
-                    <div class="err" x-text="'✗ ' + r.error_msg"></div>
-                  </div></div>
+                  <div class="flex gap-3 items-start">
+                    <div class="term flex-1 min-w-0"><div class="term-body py-2 text-[12px]">
+                      <template x-if="r.type === 'ui'">
+                        <div>
+                          <template x-for="st in (r.steps || [])" :key="st.i">
+                            <div><span :class="st.status === 'passed' ? 'ok' : st.status === 'healed' ? 'warn' : 'err'"
+                              x-text="st.status === 'passed' ? '✓' : st.status === 'healed' ? '↻' : '✗'"></span>
+                              <span class="dim" x-text="TP.pad(st.i + 1)"></span> <span class="cmd" x-text="st.action"></span>
+                              <span class="dim" x-text="(st.detail || '').slice(0, 90)"></span></div>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="r.type !== 'ui'">
+                        <div><span class="m" :class="'m-' + (r.request?.method || '')" x-text="r.request?.method"></span>
+                          <span class="cmd" x-text="r.request?.path"></span>
+                          <span class="dim" x-text="'→ ' + (r.actual_status ?? '')"></span></div>
+                      </template>
+                      <div class="err" x-text="'✗ ' + r.error_msg"></div>
+                    </div></div>
+                    <a x-show="r.screenshot" :href="r.screenshot" target="_blank" class="shrink-0 border hair block" title="Ảnh màn hình lúc lỗi">
+                      <img :src="r.screenshot" class="w-36 h-24 object-cover object-top block" alt="Ảnh màn hình lúc lỗi">
+                    </a>
+                  </div>
+                  <template x-if="r.healing">
+                    <div class="border border-dashed p-3 text-sm" style="border-color: var(--warn)">
+                      <div class="flex flex-wrap items-center gap-3">
+                        <span class="tag tag-solid-warn">tự sửa locator</span>
+                        <span class="mono text-[12px]" x-text="'bước ' + TP.pad(r.healing.step_idx + 1) + ': ' + JSON.stringify(r.healing.old_target) + ' → ' + JSON.stringify(r.healing.new_target)"></span>
+                        <button class="btn btn-sm ml-auto" x-show="!r.healApplied" @click="applyHeal(r)">Áp dụng</button>
+                        <span class="label" x-show="r.healApplied" style="color: var(--pass)">đã áp dụng</span>
+                      </div>
+                      <div class="small mt-1" x-text="r.healing.reason"></div>
+                    </div>
+                  </template>
                   <div x-show="r.pending" class="flex gap-3 items-center text-sm">
                     <span class="tag"><span class="spin" style="border-color: var(--line-2); border-top-color: var(--ink); width: 9px; height: 9px; margin-right: 6px"></span>đang phân tích</span>
                     <span class="small">Đang xác định nguyên nhân…</span>
@@ -257,6 +302,7 @@ function lab() {
     url: shopUrl, info: null, mode: 'requirement', reqText: '', sample: SHOP_REQ, view: '', count: 0,
     flags: {}, cases: [], reqs: [], picked: [], onlyThis: true, report: null, open: null,
     summary: '', busy: false, busyMsg: '', error: '', toast: '', analyzing: 0,
+    needLogin: false, loginUser: '', loginPass: '',
     verdictLabel: {app_bug: 'lỗi ứng dụng', test_broken: 'lỗi kịch bản', flaky: 'không ổn định'},
     verdictCls: {app_bug: 'tag-solid-fail', test_broken: 'tag-solid-warn', flaky: 'tag-solid-ink'},
     flagLabel: {wrong_total: 'Sai tổng tiền', allow_empty_email: 'Bỏ kiểm tra email', ignore_stock: 'Bỏ kiểm tra tồn kho', ui_v2: 'Giao diện v2'},
@@ -296,7 +342,9 @@ function lab() {
       return this.host(m ? m[1] : shopUrl);
     },
     visible() { return this.onlyThis ? this.cases.filter(c => this.caseHost(c) === this.host(this.url)) : this.cases; },
-    runnable() { return (this.picked.length ? this.cases.filter(c => this.picked.includes(c.id)) : this.visible()).filter(c => c.type === 'api'); },
+    allPicked() { const v = this.visible(); return v.length > 0 && v.every(c => this.picked.includes(c.id)); },
+    toggleAll(on) { this.picked = on ? this.visible().map(c => c.id) : []; },
+    runnable() { return this.picked.length ? this.cases.filter(c => this.picked.includes(c.id)) : this.visible(); },
     verdictCount(v) { return (this.report?.results || []).filter(r => r.ai_analysis?.verdict === v).length; },
     passRate() { return this.report?.total ? Math.round(this.report.passed / this.report.total * 100) : 0; },
     async loadCases() {
@@ -339,7 +387,8 @@ function lab() {
     },
     autopilot() {
       return this.call('testpilot explore … (1–2 phút)', async () => {
-        const r = await this.post('/api/ai/autopilot', {url: this.url});
+        const r = await this.post('/api/ai/autopilot', {url: this.url,
+          username: this.needLogin ? this.loginUser : null, password: this.needLogin ? this.loginPass : null});
         this.summary = `<b>Tổng quan hệ thống.</b> ${r.app_summary || '—'}<br><span class="small">Đã khảo sát ${r.pages.length} trang`
           + (r.openapi_found ? ' và tài liệu OpenAPI' : '') + `, đề xuất ${r.test_cases.length} kịch bản.`
           + (r.warnings?.length ? ` ${r.warnings.length} kịch bản bị loại do không đúng định dạng.` : '') + '</span>';
@@ -359,7 +408,20 @@ function lab() {
         this.report = await this.post('/api/ai/run', {test_case_ids: ids, url: this.url, classify: false});
         if (this.info?.demo_shop) this.$refs.site.src = this.previewUrl();
       });
-      if (this.report) this.classifyReport();
+      if (this.report) return this.classifyReport();   // fullAuto chờ phân tích xong mới xuất báo cáo
+    },
+    async fullAuto() {
+      // Khám phá → tạo kịch bản → thực thi → phân tích → tải báo cáo
+      await this.autopilot();
+      if (this.error || !this.picked.length) return;
+      await this.run();
+      if (this.report) { await this.exportReport(); this.flash('Hoàn tất: đã thực thi ' + this.report.total + ' lượt và tải báo cáo Excel.'); }
+    },
+    async applyHeal(r) {
+      try {
+        await this.post('/api/ai/heal/apply', {test_case_id: r.test_case_id, step_idx: r.healing.step_idx, new_target: r.healing.new_target});
+        r.healApplied = true; await this.loadCases(); this.flash('Đã cập nhật locator cho ' + r.test_case_id + '.');
+      } catch (e) { this.error = e.message; }
     },
     async classifyReport() {
       const fails = this.report.results.filter(r => r.status === 'failed');
@@ -373,7 +435,7 @@ function lab() {
         while (next < chunks.length) {
           const ch = chunks[next++];
           try {
-            const items = ch.map(({pending, ai_analysis, ...rest}) => rest);
+            const items = ch.map(({pending, ai_analysis, screenshot, ...rest}) => rest);
             const verdicts = await this.post('/api/ai/classify', {url: this.url, items});
             ch.forEach((r, k) => { r.ai_analysis = verdicts[k]; });
           } catch (e) { /* lô lỗi: giữ kết quả, bỏ phần phân tích */ }
