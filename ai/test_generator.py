@@ -114,8 +114,10 @@ def _generate_many(llm: LLMProvider, requirement: str, context: str, count: int)
         results = list(pool.map(run, batches))
         # Đợt lỗi / thiếu kịch bản: sinh bù một lần cho các kịch bản còn thiếu trong kế hoạch
         got = {tc.title.strip().lower() for batch in results for tc in batch}
-        missing = [s for s in scenarios if s["title"].strip().lower() not in got]
-        if missing and len(got) < len(scenarios):
+        # AI hay sửa nhẹ tiêu đề nên chỉ sinh bù đúng số còn thiếu, không bù theo từng tiêu đề
+        shortfall = count - len(got)
+        missing = [s for s in scenarios if s["title"].strip().lower() not in got][:max(shortfall, 0)]
+        if missing:
             retry = [missing[i:i + BATCH_SIZE] for i in range(0, len(missing), BATCH_SIZE)]
             results += list(pool.map(run, retry))
     cases, seen = [], set()
@@ -127,7 +129,7 @@ def _generate_many(llm: LLMProvider, requirement: str, context: str, count: int)
                 cases.append(tc)
     if not cases:
         raise ValueError("AI không sinh được test case hợp lệ ở mọi đợt")
-    return cases
+    return cases[:count]
 
 
 def _build_context(openapi_spec, ui_elements, sample_data=None) -> str:

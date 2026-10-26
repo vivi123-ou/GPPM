@@ -322,3 +322,19 @@ def test_backend_app_imports_and_routes_exist():
     from backend.main import app
     paths = set(app.openapi()["paths"])
     assert {"/api/ai/run", "/api/ai/generate", "/api/ai/inspect", "/api/export/test-cases.xlsx"} <= paths
+
+
+def test_generate_many_refills_only_shortfall_and_caps(monkeypatch):
+    monkeypatch.setattr(test_generator, "BATCH_SIZE", 3)
+    monkeypatch.setenv("AI_PARALLEL", "1")
+    plan = {"scenarios": [{"title": f"Kịch bản {i}", "type": "api"} for i in range(1, 7)]}
+
+    def tc(title):
+        return {"title": title, "type": "api", "steps": [{"method": "GET", "path": "/x", "expect": {"status": 200}}]}
+
+    # Đợt 1 đổi tiêu đề (AI hay sửa chữ), đợt 2 thiếu 1 kịch bản → chỉ bù 1, tổng không vượt 6
+    b1 = {"test_cases": [tc("KB 1 (sửa)"), tc("KB 2 (sửa)"), tc("KB 3 (sửa)")]}
+    b2 = {"test_cases": [tc("Kịch bản 4"), tc("Kịch bản 5")]}
+    refill = {"test_cases": [tc("Kịch bản 6"), tc("Thừa 1"), tc("Thừa 2")]}
+    cases = test_generator.generate_test_cases("x", count=6, provider=FakeProvider(plan, b1, b2, refill))
+    assert len(cases) == 6 and cases[-1].title == "Kịch bản 6"
