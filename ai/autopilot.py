@@ -100,7 +100,12 @@ def try_login(page, username: str, password: str) -> dict:
             submit.first.click(timeout=5000)
         else:
             pw_box.first.press("Enter")
-        page.wait_for_load_state("load", timeout=15000)
+        # Đăng nhập có thể chậm (băm mật khẩu, gọi API rồi mới chuyển trang): chờ tới khi
+        # rời trang đăng nhập hoặc ô mật khẩu biến mất, tối đa 12 giây
+        for _ in range(48):
+            if page.url != before or page.locator("input[type=password]:visible").count() == 0:
+                break
+            page.wait_for_timeout(250)
         _settle(page, 4000)
     except Exception:
         pass
