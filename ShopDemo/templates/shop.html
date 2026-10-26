@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TVT MOBILE</title>
+    <link rel="stylesheet" href="/shop-assets/css/shop.css">
+</head>
+<body>
+    <header>
+        <div class="brand">TVT <em>MOBILE</em></div>
+
+        <nav class="nav">
+            <a href="#catalog">Điện thoại</a>
+            <a href="#offers">Ưu đãi</a>
+            <a href="/shop/about">Về chúng tôi</a>
+        </nav>
+
+        <button
+            class="cart"
+            id="cart-jump"
+            data-testid="cart-button"
+            onclick="document.querySelector('#cart').scrollIntoView({behavior:'smooth'})"
+        >
+            Giỏ hàng <span id="count">0</span>
+        </button>
+    </header>
+
+    <section class="hero">
+        <img
+            class="hero-background"
+            src="/shop-assets/images/banner.gif"
+            alt=""
+            aria-hidden="true"
+            onload="document.body.classList.add('has-shop-banner')"
+            onerror="this.remove()"
+        >
+        <div class="hero-copy">
+            <div class="eyebrow">TVT MOBILE · NEW COLLECTION</div>
+            <h1>Công nghệ tuyệt vời. Trải nghiệm mỗi ngày.</h1>
+            <p>Khám phá những chiếc điện thoại phù hợp với bạn — thiết kế đẹp, hiệu năng mạnh mẽ, mức giá dễ chọn.</p>
+            <a class="hero-link" href="#catalog">Khám phá sản phẩm <span>→</span></a>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+            <div class="hero-orbit"></div>
+            <div class="hero-device"><span></span><i></i></div>
+            <div class="hero-device hero-device-back"><span></span><i></i></div>
+        </div>
+    </section>
+
+    <main class="wrap">
+        <div class="section-head">
+            <div><div class="eyebrow">CHỌN THEO PHONG CÁCH CỦA BẠN</div><h2 id="catalog">Điện thoại nổi bật</h2></div>
+            <span>Thiết kế tinh tế · Hiệu năng ấn tượng</span>
+        </div>
+
+        <div class="grid" id="products"></div>
+
+        <section class="offers" id="offers">
+            <div class="offers-mark">
+                <span>TVT</span>
+                <img src="/shop-assets/images/logo.png" alt="Logo TVT MOBILE" onload="this.parentElement.classList.add('has-logo')" onerror="this.remove()">
+            </div>
+            <div class="offers-content">
+                <div class="eyebrow">ĐẶC QUYỀN TẠI TVT MOBILE</div>
+                <h2>Mua sắm thông minh, chọn máy an tâm.</h2>
+                <p>Khám phá giá bán minh bạch, thông tin sản phẩm rõ ràng và trải nghiệm đặt hàng nhanh gọn.</p>
+                <div class="offer-points">
+                    <span><b>01</b> Giá demo rõ ràng</span>
+                    <span><b>02</b> Cập nhật tồn kho</span>
+                    <span><b>03</b> Đặt hàng dễ dàng</span>
+                </div>
+                <small>TVT MOBILE là cửa hàng mô phỏng dành cho trải nghiệm TestPilot. Giá và ưu đãi chỉ phục vụ demo.</small>
+            </div>
+            <a class="offers-link" href="#catalog">Chọn điện thoại <span>→</span></a>
+        </section>
+
+        <section class="panel" id="cart">
+            <h2>Giỏ hàng &amp; thanh toán</h2>
+
+            <div id="cart-items">
+                <div style="color:#879087">
+                    Giỏ hàng của bạn đang trống.
+                </div>
+            </div>
+
+            <div class="total">
+                Tổng cộng: <span id="total">0 ₫</span>
+            </div>
+
+            <div class="checkout">
+                <label>Họ và tên<input id="customer" placeholder="Nguyễn Văn A" value="Nguyễn Minh Anh" required data-testid="customer-name"></label>
+                <label>Số điện thoại<input id="phone" type="tel" placeholder="09xx xxx xxx" value="0901234567" required data-testid="phone"></label>
+                <label>Email<input id="email" type="email" placeholder="email@example.com" value="minhanh@example.com" required data-testid="email"></label>
+                <label>Tỉnh / thành phố
+                    <select id="city" required data-testid="city">
+                        <option value="" disabled>Chọn tỉnh / thành phố</option>
+                        <option value="Thành phố Hà Nội">Thành phố Hà Nội</option>
+                        <option value="Tỉnh An Giang">Tỉnh An Giang</option>
+                        <option value="Tỉnh Bắc Ninh">Tỉnh Bắc Ninh</option>
+                        <option value="Tỉnh Cà Mau">Tỉnh Cà Mau</option>
+                        <option value="Tỉnh Cao Bằng">Tỉnh Cao Bằng</option>
+                        <option value="Thành phố Cần Thơ">Thành phố Cần Thơ</option>
+                        <option value="Tỉnh Đắk Lắk">Tỉnh Đắk Lắk</option>
+                        <option value="Thành phố Đà Nẵng">Thành phố Đà Nẵng</option>
+                        <option value="Tỉnh Điện Biên">Tỉnh Điện Biên</option>
+                        <option value="Tỉnh Đồng Nai">Tỉnh Đồng Nai</option>
+                        <option value="Tỉnh Đồng Tháp">Tỉnh Đồng Tháp</option>
+                        <option value="Tỉnh Gia Lai">Tỉnh Gia Lai</option>
+                        <option value="Tỉnh Hà Tĩnh">Tỉnh Hà Tĩnh</option>
+                        <option value="Thành phố Hải Phòng">Thành phố Hải Phòng</option>
+                        <option value="Thành phố Huế">Thành phố Huế</option>
+                        <option value="Tỉnh Hưng Yên">Tỉnh Hưng Yên</option>
+                        <option value="Tỉnh Khánh Hòa">Tỉnh Khánh Hòa</option>
+                        <option value="Tỉnh Lai Châu">Tỉnh Lai Châu</option>
+                        <option value="Tỉnh Lâm Đồng">Tỉnh Lâm Đồng</option>
+                        <option value="Tỉnh Lạng Sơn">Tỉnh Lạng Sơn</option>
+                        <option value="Tỉnh Lào Cai">Tỉnh Lào Cai</option>
+                        <option value="Tỉnh Nghệ An">Tỉnh Nghệ An</option>
+                        <option value="Tỉnh Ninh Bình">Tỉnh Ninh Bình</option>
+                        <option value="Tỉnh Phú Thọ">Tỉnh Phú Thọ</option>
+                        <option value="Tỉnh Quảng Ngãi">Tỉnh Quảng Ngãi</option>
+                        <option value="Tỉnh Quảng Ninh">Tỉnh Quảng Ninh</option>
+                        <option value="Tỉnh Quảng Trị">Tỉnh Quảng Trị</option>
+                        <option value="Tỉnh Sơn La">Tỉnh Sơn La</option>
+                        <option value="Tỉnh Tây Ninh">Tỉnh Tây Ninh</option>
+                        <option value="Tỉnh Thái Nguyên">Tỉnh Thái Nguyên</option>
+                        <option value="Tỉnh Thanh Hóa">Tỉnh Thanh Hóa</option>
+                        <option value="Thành phố Hồ Chí Minh" selected>Thành phố Hồ Chí Minh</option>
+                        <option value="Tỉnh Tuyên Quang">Tỉnh Tuyên Quang</option>
+                        <option value="Tỉnh Vĩnh Long">Tỉnh Vĩnh Long</option>
+                    </select>
+                </label>
+                <label class="full-width">Địa chỉ nhận hàng<input id="address" placeholder="Số nhà, tên đường, phường / xã" value="12 Nguyễn Huệ, Quận 1" required data-testid="address"></label>
+                <label>Phương thức thanh toán<select id="payment-method" data-testid="payment-method"><option value="cod">Thanh toán khi nhận hàng (COD)</option><option value="bank_transfer">Chuyển khoản ngân hàng</option></select></label>
+                <label>Ghi chú<textarea id="note" rows="2" placeholder="Ghi chú cho cửa hàng (không bắt buộc)" data-testid="order-note"></textarea></label>
+            </div>
+
+            <button
+                class="add"
+                style="margin-top:14px;padding:13px 20px"
+                onclick="reviewOrder()"
+                data-testid="checkout-button"
+            >
+                Tiếp tục đặt hàng
+            </button>
+
+            <div id="message" class="message"></div>
+        </section>
+    </main>
+
+    <div class="confirm-modal" id="confirm-modal" hidden>
+        <div class="confirm-backdrop" onclick="closeConfirmation()"></div>
+        <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <button class="confirm-close" type="button" aria-label="Đóng" onclick="closeConfirmation()">×</button>
+            <div class="eyebrow">KIỂM TRA LẠI ĐƠN HÀNG</div>
+            <h2 id="confirm-title">Bạn có xác nhận đặt hàng?</h2>
+            <p class="confirm-hint">Vui lòng kiểm tra thông tin trước khi xác nhận.</p>
+            <div id="confirm-items" class="confirm-items"></div>
+            <div id="confirm-customer" class="confirm-customer"></div>
+            <div class="confirm-total">Tổng thanh toán <strong id="confirm-total">0 ₫</strong></div>
+            <div class="confirm-actions">
+                <button class="confirm-cancel" type="button" onclick="closeConfirmation()">Kiểm tra lại</button>
+                <button class="add confirm-submit" type="button" onclick="confirmOrder()" data-testid="confirm-order-button">Xác nhận đặt hàng</button>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        TVT MOBILE · Demo Shop cho TestPilot · Dữ liệu demo
+    </footer>
+
+    <script src="/shop-assets/js/shop.js" defer></script>
+</body>
+</html>
