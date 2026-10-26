@@ -872,3 +872,143 @@ body.modal-open { overflow: hidden; }
   .confirm-dialog { padding: 27px 20px; }
   .confirm-actions { flex-direction: column-reverse; }
 }
+
+/* Shop account controls and sign-in / registration screens */
+.account-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; white-space: nowrap; }
+.account-actions > a { color: #455064; text-decoration: none; font-size: 12px; font-weight: 600; }
+.account-actions > a:hover,.auth-switch a { color: var(--blue); }
+.account-actions .account-register { color: var(--blue); }
+.account-greeting { max-width: 150px; overflow: hidden; color: #455064; font-size: 11px; text-overflow: ellipsis; }
+.account-logout { padding: 7px 10px; border: 1px solid var(--line); border-radius: 3px; background: white; color: #455064; cursor: pointer; font-size: 11px; }
+.auth-home { text-decoration: none; }
+.auth-page { min-height: 100vh; display: flex; flex-direction: column; }
+.auth-shell { width: min(1040px,calc(100% - 40px)); min-height: 590px; margin: auto; padding: 48px 0; display: grid; grid-template-columns: 1fr 440px; gap: 70px; align-items: center; }
+.auth-art { min-height: 430px; padding: 48px; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; background: linear-gradient(135deg,#eef4ff,#f8faff 65%,#e4eeff); }
+.auth-art h1 { position: relative; z-index: 1; margin: 16px 0 10px; font-size: clamp(44px,5vw,64px); line-height: 1.05; letter-spacing: -3px; }
+.auth-art p { position: relative; z-index: 1; max-width: 340px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.auth-art-orb { position: absolute; right: -55px; bottom: -70px; width: 240px; height: 240px; display: grid; place-items: center; border-radius: 50%; background: #d9e7ff; color: white; font-size: 95px; }
+.auth-card { padding: 34px; border: 1px solid var(--line); background: white; box-shadow: 0 18px 55px #192e4d0c; }
+.auth-card h2 { margin: 11px 0 4px; font-size: 28px; letter-spacing: -.8px; }
+.auth-subtitle { margin: 0 0 23px; color: var(--muted); font-size: 12px; }
+.auth-card form { display: grid; gap: 15px; }
+.auth-card label { display: grid; gap: 7px; color: #4f5968; font-size: 11px; font-weight: 600; }
+.auth-card input { width: 100%; padding: 12px; border: 1px solid #dfe3e9; border-radius: 3px; color: var(--ink); font-size: 13px; }
+.auth-card input:focus { outline: 2px solid #d5e5ff; border-color: var(--blue); }
+.auth-submit { width: 100%; min-height: 44px; font-size: 13px; }
+.auth-submit:disabled { opacity: .65; cursor: wait; }
+.auth-error { min-height: 17px; margin: 0; color: #c0394b; font-size: 11px; }
+.auth-switch { margin: 20px 0 0; color: var(--muted); text-align: center; font-size: 12px; }
+.auth-switch a { font-weight: 600; text-decoration: none; }
+.auth-page footer { margin-top: auto; }
+@media(max-width:800px) {
+  .auth-shell { grid-template-columns: 1fr 380px; gap: 24px; }
+  .auth-art { padding: 30px; }
+  .account-greeting { display: none; }
+}
+@media(max-width:620px) {
+  .auth-page header { padding: 0 15px; }
+  .auth-page .nav { display: none; }
+  .auth-home { padding: 8px 10px; }
+  .auth-shell { width: min(440px,calc(100% - 28px)); min-height: 0; padding: 26px 0 40px; grid-template-columns: 1fr; gap: 15px; }
+  .auth-art { min-height: 190px; padding: 25px; }
+  .auth-art h1 { margin: 10px 0 4px; font-size: 39px; letter-spacing: -1.8px; }
+  .auth-art p { max-width: 290px; margin-bottom: 0; }
+  .auth-art-orb { width: 130px; height: 130px; right: -32px; bottom: -48px; font-size: 53px; }
+  .auth-card { padding: 24px; }
+  body:not(.auth-page) header { gap: 8px; }
+  body:not(.auth-page) .account-actions { gap: 9px; }
+  body:not(.auth-page) .account-greeting { display: none; }
+}
+
+/* Compact pill controls in the shop navigation */
+body:not(.auth-page) header { gap: 18px; }
+body:not(.auth-page) .brand { flex: 0 0 auto; }
+body:not(.auth-page) .nav { flex: 1 1 auto; justify-content: center; }
+body:not(.auth-page) .cart {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 40px; padding: 0 15px; border: 1px solid #dfe3e9; border-radius: 24px;
+  background: #fff; color: #273449; white-space: nowrap; font-size: 12px; font-weight: 600;
+}
+.cart-icon { width: 17px; height: 17px; flex: 0 0 auto; }
+.cart-count { min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 10px; background: #eef4ff; color: var(--blue); font-size: 10px; }
+body:not(.auth-page) .account-actions { flex: 0 0 auto; gap: 9px; }
+body:not(.auth-page) .account-actions > a,
+body:not(.auth-page) .account-logout {
+  min-height: 38px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #dfe3e9; border-radius: 22px; background: #fff; color: #273449;
+  text-decoration: none; font-size: 11px; font-weight: 600; transition: .18s ease;
+}
+body:not(.auth-page) .account-actions > a:hover,
+body:not(.auth-page) .account-logout:hover { border-color: var(--blue); color: var(--blue); }
+body:not(.auth-page) .account-actions > .account-register {
+  border-color: var(--blue); background: var(--blue); color: #fff !important;
+}
+body:not(.auth-page) .account-actions > .account-register:hover { border-color: var(--blue-dark); background: var(--blue-dark); }
+@media(max-width:900px) and (min-width:621px) {
+  body:not(.auth-page) header { gap: 10px; padding-left: 22px; padding-right: 22px; }
+  body:not(.auth-page) .nav { gap: 18px; }
+}
+@media(max-width:620px) {
+  body:not(.auth-page) header { gap: 7px; padding: 0 12px; }
+  body:not(.auth-page) .brand { font-size: 16px; letter-spacing: -.7px; }
+  body:not(.auth-page) .cart { min-height: 35px; gap: 5px; padding: 0 8px; font-size: 10px; }
+  body:not(.auth-page) .cart-icon { width: 15px; height: 15px; }
+  body:not(.auth-page) .account-actions { gap: 5px; }
+  body:not(.auth-page) .account-actions > a,
+  body:not(.auth-page) .account-logout { min-height: 34px; padding: 0 9px; font-size: 10px; }
+}
+
+.password-input { position: relative; display: block; width: 100%; }
+.auth-card .password-input input { padding-right: 46px; }
+.password-input input::-ms-reveal { display: none; }
+.password-toggle {
+  position: absolute; top: 50%; right: 9px; width: 30px; height: 30px;
+  display: grid; place-items: center; transform: translateY(-50%);
+  border: 0; border-radius: 4px; background: transparent; color: #6f7b8c;
+  cursor: pointer;
+}
+.password-toggle:hover { background: #f1f5fb; color: var(--blue); }
+.password-toggle:focus-visible { outline: 2px solid #b9d5ff; }
+.password-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Gentle motion for the TVT MOBILE about-page hero */
+.about-hero { background-size: 200% 200%; animation: about-gradient 14s ease-in-out infinite alternate; }
+.about-hero .eyebrow,.about-hero h1,.about-hero p,.about-hero .about-cta { animation: about-enter .75s both; }
+.about-hero h1 { animation-delay: .08s; }
+.about-hero p { animation-delay: .16s; }
+.about-hero .about-cta { animation-delay: .24s; }
+.about-orb { translate: 0 0; animation: about-float 5.5s ease-in-out infinite; }
+.about-orb::before {
+  content: ''; position: absolute; inset: -13px; border: 1px solid #7eacf34a; border-radius: 50%;
+  animation: about-ring 5s ease-in-out infinite;
+}
+.about-orb span { display: block; animation: about-star-turn 18s linear infinite, about-star-glow 3s ease-in-out infinite; }
+@keyframes about-gradient { from { background-position: 0% 48%; } to { background-position: 100% 52%; } }
+@keyframes about-float { 0%,100% { translate: 0 0; } 50% { translate: 0 -9px; } }
+@keyframes about-ring { 0%,100% { transform: scale(.98); opacity: .55; } 50% { transform: scale(1.05); opacity: 1; } }
+@keyframes about-star-turn { from { rotate: 0deg; } to { rotate: 360deg; } }
+@keyframes about-star-glow { 0%,100% { scale: .96; opacity: .85; } 50% { scale: 1.08; opacity: 1; } }
+@keyframes about-enter { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+@media(prefers-reduced-motion:reduce) {
+  .about-hero,.about-hero .eyebrow,.about-hero h1,.about-hero p,.about-hero .about-cta,.about-orb,.about-orb::before,.about-orb span { animation: none !important; }
+}
+
+/* Match the animated hero treatment on login and registration pages */
+.auth-art { background-size: 200% 200%; animation: about-gradient 14s ease-in-out infinite alternate; }
+.auth-art > .eyebrow,.auth-art h1,.auth-art p { animation: about-enter .75s both; }
+.auth-art h1 { animation-delay: .08s; }
+.auth-art p { animation-delay: .16s; }
+.auth-art-orb { translate: 0 0; animation: about-float 5.5s ease-in-out infinite; }
+.auth-art-orb::before { content: ''; position: absolute; inset: -12px; border: 1px solid #7eacf34a; border-radius: 50%; animation: about-ring 5s ease-in-out infinite; }
+.auth-art-orb span { display: block; animation: about-star-turn 18s linear infinite, about-star-glow 3s ease-in-out infinite; }
+@media(prefers-reduced-motion:reduce) {
+  .auth-art,.auth-art > .eyebrow,.auth-art h1,.auth-art p,.auth-art-orb,.auth-art-orb::before,.auth-art-orb span { animation: none !important; }
+}
+
+/* Red quantity badge anchored over the shopping-cart icon */
+.cart-symbol { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 22px; }
+.cart-symbol .cart-count {
+  position: absolute; top: -7px; right: -10px; z-index: 1; min-width: 17px; height: 17px;
+  padding: 0 4px; display: inline-grid; place-items: center; border: 2px solid #fff;
+  border-radius: 12px; background: #ef4444; color: #fff; font-size: 9px; line-height: 1; font-weight: 700;
+}

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>TVT MOBILE</title>
-    <link rel="stylesheet" href="/shop-assets/css/shop.css">
+    <link rel="stylesheet" href="/shop-assets/css/shop.css?v=cart-badge-1">
 </head>
 <body>
     <header>
@@ -22,8 +22,19 @@
             data-testid="cart-button"
             onclick="document.querySelector('#cart').scrollIntoView({behavior:'smooth'})"
         >
-            Giỏ hàng <span id="count">0</span>
+            <span class="cart-symbol">
+                <svg class="cart-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="10" cy="20" r="1.2" fill="currentColor"/><circle cx="18" cy="20" r="1.2" fill="currentColor"/>
+                </svg>
+                <span id="count" class="cart-count">0</span>
+            </span>
+            <span>Giỏ hàng</span>
         </button>
+        <div class="account-actions" id="account-actions">
+            <a class="account-login" href="/shop/login">Đăng nhập</a>
+            <a class="account-register" href="/shop/register">Đăng ký</a>
+        </div>
     </header>
 
     <section class="hero">
@@ -89,9 +100,9 @@
             </div>
 
             <div class="checkout">
-                <label>Họ và tên<input id="customer" placeholder="Nguyễn Văn A" value="Nguyễn Minh Anh" required data-testid="customer-name"></label>
+                <label>Họ và tên<input id="customer" placeholder="Nguyễn Văn A" required data-testid="customer-name"></label>
                 <label>Số điện thoại<input id="phone" type="tel" placeholder="09xx xxx xxx" value="0901234567" required data-testid="phone"></label>
-                <label>Email<input id="email" type="email" placeholder="email@example.com" value="minhanh@example.com" required data-testid="email"></label>
+                <label>Email<input id="email" type="email" placeholder="email@example.com" required data-testid="email"></label>
                 <label>Tỉnh / thành phố
                     <select id="city" required data-testid="city">
                         <option value="" disabled>Chọn tỉnh / thành phố</option>
@@ -170,6 +181,6 @@
         TVT MOBILE · Demo Shop cho TestPilot · Dữ liệu demo
     </footer>
 
-    <script src="/shop-assets/js/shop.js" defer></script>
+    <script src="/shop-assets/js/shop.js?v=eye-toggle-1" defer></script>
 </body>
 </html>

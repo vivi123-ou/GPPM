@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Đăng nhập · TVT MOBILE</title>
+    <link rel="stylesheet" href="/shop-assets/css/shop.css?v=auth-motion-1">
+</head>
+<body class="auth-page">
+    <header>
+        <a class="brand" href="/shop">TVT <em>MOBILE</em></a>
+        <nav class="nav"><a href="/shop#catalog">Điện thoại</a><a href="/shop#offers">Ưu đãi</a><a href="/shop/about">Về chúng tôi</a></nav>
+        <a class="cart auth-home" href="/shop">Về cửa hàng</a>
+    </header>
+    <main class="auth-shell">
+        <div class="auth-art"><span class="eyebrow">TVT MOBILE</span><h1>Chào mừng<br>trở lại.</h1><p>Đăng nhập để tiếp tục trải nghiệm mua sắm của bạn.</p><div class="auth-art-orb" aria-hidden="true"><span>✦</span></div></div>
+        <section class="auth-card">
+            <div class="eyebrow">TÀI KHOẢN CỦA BẠN</div>
+            <h2>Đăng nhập</h2>
+            <p class="auth-subtitle">Nhập email và mật khẩu để tiếp tục.</p>
+            <form id="login-form">
+                <label>Email<input name="email" type="email" autocomplete="username" required placeholder="ban@example.com" data-testid="login-email"></label>
+                <label>Mật khẩu
+                    <span class="password-input">
+                        <input name="password" type="password" autocomplete="current-password" required placeholder="Nhập mật khẩu" data-testid="login-password">
+                        <button class="password-toggle" type="button" aria-label="Hiện mật khẩu" aria-pressed="false" data-testid="toggle-login-password"></button>
+                    </span>
+                </label>
+                <p class="auth-error" id="auth-error" aria-live="polite"></p>
+                <button class="add auth-submit" type="submit">Đăng nhập</button>
+            </form>
+            <p class="auth-switch">Chưa có tài khoản? <a href="/shop/register">Đăng ký ngay</a></p>
+        </section>
+    </main>
+    <footer>TVT MOBILE · Demo Shop cho TestPilot · Tài khoản dùng cho bản demo</footer>
+    <script src="/shop-assets/js/auth.js?v=eye-toggle-1" defer></script>
+</body>
+</html>

@@ -21,6 +21,8 @@ TestPilot là ứng dụng hỗ trợ kiểm thử phần mềm theo yêu cầu.
 ### TVT MOBILE Demo Shop
 
 - Cửa hàng điện thoại với 8 sản phẩm mẫu, giỏ hàng và thanh toán.
+- Đăng ký, đăng nhập email/mật khẩu và tài khoản demo được seed từ `.env`.
+- Checkout yêu cầu đăng nhập; mật khẩu lưu dưới dạng PBKDF2 hash và session dùng cookie HttpOnly.
 - REST API có tài liệu OpenAPI tự sinh.
 - SQLite tự khởi tạo và nạp dữ liệu mẫu ở lần chạy đầu.
 - Bug flags có thể bật/tắt để mô phỏng lỗi nghiệp vụ và thay đổi giao diện.
@@ -82,6 +84,8 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
+Nếu muốn tạo tài khoản demo có sẵn, sao chép `.env.example` thành `.env`, rồi điền `SHOP_DEMO_EMAIL` và `SHOP_DEMO_PASSWORD` trong `.env`. Không commit `.env` hoặc chia sẻ mật khẩu này.
+
 ### Chạy TestPilot cùng Demo Shop
 
 Từ thư mục gốc repo, chạy:
@@ -109,6 +113,8 @@ Các địa chỉ chính:
 | TestPilot dashboard | <http://127.0.0.1:8000/> | Không chạy |
 | TVT MOBILE Demo Shop | <http://127.0.0.1:8000/shop> | <http://127.0.0.1:8001/shop> |
 | Giới thiệu TVT MOBILE | <http://127.0.0.1:8000/shop/about> | <http://127.0.0.1:8001/shop/about> |
+| Đăng nhập | <http://127.0.0.1:8000/shop/login> | <http://127.0.0.1:8001/shop/login> |
+| Đăng ký | <http://127.0.0.1:8000/shop/register> | <http://127.0.0.1:8001/shop/register> |
 | API docs (Swagger UI) | <http://127.0.0.1:8000/docs> | <http://127.0.0.1:8001/docs> |
 
 Không cần cài hoặc cấu hình database riêng. SQLite tạo `testpilot.db` và `demo_shop.db` trong thư mục gốc khi ứng dụng khởi chạy và khởi tạo dữ liệu tương ứng.
@@ -118,6 +124,10 @@ Không cần cài hoặc cấu hình database riêng. SQLite tạo `testpilot.db
 | Method | Endpoint | Mô tả |
 | --- | --- | --- |
 | `GET` | `/api/shop/products` | Danh sách điện thoại, giá và tồn kho |
+| `POST` | `/api/shop/auth/register` | Đăng ký tài khoản và tạo phiên đăng nhập |
+| `POST` | `/api/shop/auth/login` | Đăng nhập bằng email và mật khẩu |
+| `GET` | `/api/shop/auth/me` | Thông tin tài khoản đang đăng nhập |
+| `POST` | `/api/shop/auth/logout` | Đăng xuất và xóa phiên |
 | `POST` | `/api/shop/checkout` | Tạo đơn hàng và cập nhật tồn kho |
 | `GET` | `/api/shop/orders/{order_id}` | Chi tiết đơn hàng |
 | `GET` | `/api/shop/bugs` | Xem trạng thái bug flags |
@@ -139,7 +149,7 @@ Ví dụ tạo đơn hàng:
 }
 ```
 
-Gửi JSON này tới `POST /api/shop/checkout`. API trả mã đơn, tổng tiền và các dòng sản phẩm; dữ liệu đơn hàng được lưu trong SQLite.
+Gửi JSON này tới `POST /api/shop/checkout` sau khi đăng nhập để có session cookie. API trả mã đơn, tổng tiền và các dòng sản phẩm; dữ liệu đơn hàng được lưu trong SQLite.
 
 ## Kịch bản trình diễn bug flags
 
