@@ -16,6 +16,8 @@ from ai.llm_provider import LLMProvider, get_provider
 from backend.models import TestCase
 
 _PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+_PLAN_PREFIX = re.compile(r"^\s*\[[a-z]+/[a-z]+(?:/[a-z]*)?\]\s*", re.I)
+_PLAN_SUFFIX = re.compile(r"\s+[—–-]\s+(GET|POST|PUT|PATCH|DELETE)\s+/\S*.*$")
 DEFAULT_EXCLUDE = ("/api/shop/bugs,/api/shop/reset,/api/requirements,/api/test-cases,/api/runs,"
                    "/api/ai/,/api/export/")
 
@@ -100,8 +102,9 @@ def _generate_many(llm: LLMProvider, requirement: str, context: str, count: int)
     batches = [scenarios[i:i + BATCH_SIZE] for i in range(0, len(scenarios), BATCH_SIZE)]
 
     def run(batch: list[dict]) -> list[TestCase]:
-        lines = "\n".join(f"{i}. [{s.get('type', 'api')}/{s.get('priority', 'medium')}/{s.get('technique', '')}] "
-                          f"{s['title']} — {s.get('notes', '')}" for i, s in enumerate(batch, 1))
+        lines = "\n".join(f"{i}. title: {s['title']}\n   type: {s.get('type', 'api')} · priority: "
+                          f"{s.get('priority', 'medium')} · technique: {s.get('technique', '')} · notes: {s.get('notes', '')}"
+                          for i, s in enumerate(batch, 1))
         user = prompts.BATCH_USER.format(requirement=requirement, context=context,
                                          count=len(batch), scenarios=lines)
         try:
@@ -227,6 +230,9 @@ def normalize(item: dict) -> dict:
     item = dict(item)
     item.setdefault("id", "TC-000")
     item.setdefault("title", "Test case")
+    # AI đôi khi chép cả nhãn kế hoạch vào tiêu đề: "[api/high/happy] Tiêu đề — POST /x with …"
+    title = _PLAN_PREFIX.sub("", str(item["title"])).strip()
+    item["title"] = _PLAN_SUFFIX.sub("", title).strip() or title
     steps = [s for s in item.get("steps") or [] if isinstance(s, dict)]
     if "type" not in item or item["type"] not in ("api", "ui"):
         item["type"] = "api" if any(s.get("method") for s in steps) else "ui"

@@ -21,6 +21,7 @@ from abc import ABC, abstractmethod
 import httpx
 
 from ai.json_utils import parse_json
+from ai.http import client as _http
 
 
 class LLMError(RuntimeError):
@@ -123,7 +124,7 @@ class GeminiProvider(LLMProvider):
         cfg: dict = {"temperature": self.temperature}
         if json_mode:
             cfg["responseMimeType"] = "application/json"
-        r = httpx.post(
+        r = _http.post(
             f"{self.BASE}/{self.model}:generateContent",
             headers={"x-goog-api-key": self.api_key},
             json={"systemInstruction": {"parts": [{"text": system}]},
@@ -159,13 +160,13 @@ class OpenAICompatibleProvider(LLMProvider):
                                    {"role": "user", "content": user}], **self._extra()}
         if json_mode:
             body["response_format"] = {"type": "json_object"}
-        r = httpx.post(f"{self.base_url}/chat/completions",
+        r = _http.post(f"{self.base_url}/chat/completions",
                        headers={"Authorization": f"Bearer {self.api_key}"},
                        json=body, timeout=self.timeout)
         if json_mode and r.status_code == 400 and "json_validate_failed" in r.text:
             # Groq từ chối khi bản nháp JSON không hợp lệ: gọi lại ở chế độ thường, tự tách JSON sau
             body.pop("response_format")
-            r = httpx.post(f"{self.base_url}/chat/completions",
+            r = _http.post(f"{self.base_url}/chat/completions",
                            headers={"Authorization": f"Bearer {self.api_key}"},
                            json=body, timeout=self.timeout)
         r.raise_for_status()
@@ -213,7 +214,7 @@ class OllamaProvider(LLMProvider):
                                    {"role": "user", "content": user}]}
         if json_mode:
             body["format"] = "json"
-        r = httpx.post(f"{self.base_url}/api/chat", json=body, timeout=self.timeout)
+        r = _http.post(f"{self.base_url}/api/chat", json=body, timeout=self.timeout)
         r.raise_for_status()
         return r.json()["message"]["content"]
 

@@ -14,6 +14,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from ai import prompts
+from ai.http import client as _http
 from ai.dom import extract_elements, format_elements
 from ai.json_utils import unwrap_list
 from ai.llm_provider import LLMProvider, get_provider
@@ -30,7 +31,7 @@ def find_openapi(base_url: str, timeout: float = 5.0) -> dict | None:
     candidates += [urljoin(base_url, p) for p in OPENAPI_PATHS]
     for u in candidates:
         try:
-            r = httpx.get(u, timeout=timeout, follow_redirects=True)
+            r = _http.get(u, timeout=timeout)
             if r.status_code == 200 and "json" in r.headers.get("content-type", ""):
                 data = r.json()
                 if isinstance(data, dict) and "paths" in data:
@@ -60,7 +61,7 @@ def fetch_samples(base_url: str, spec: dict, per_endpoint: int = 1200, timeout: 
         if len(out) >= 4:
             break
         try:
-            r = httpx.get(api_base(base_url, spec) + path, timeout=timeout)
+            r = _http.get(api_base(base_url, spec) + path, timeout=timeout)
             if r.status_code == 200 and "json" in r.headers.get("content-type", ""):
                 data = r.json()
                 if isinstance(data, list):

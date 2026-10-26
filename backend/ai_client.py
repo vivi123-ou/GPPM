@@ -37,6 +37,13 @@ def classify_failure(test_case: TestCase, result: dict, api_paths: list[str] | N
     from ai.classifier import classify_failure as real
     return real(test_case, result, api_paths=api_paths, context=context)
 
+def classify_failures(items: list, api_paths: list[str] | None = None, context: str = "") -> list[dict]:
+    """items: [(test_case, result), ...] — phân loại theo lô."""
+    if USE_MOCK:
+        return [_mock("classify.json") for _ in items]
+    from ai.classifier import classify_failures as real
+    return real(items, api_paths=api_paths, context=context)
+
 def suggest_locator(step: dict, dom_snapshot: str) -> dict:
     if USE_MOCK:
         return _mock("suggest_locator.json")

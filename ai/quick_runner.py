@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import re
 import time
+from contextlib import nullcontext
 from typing import Callable
 
 import httpx
 
+from ai.http import client as _http
 from backend.models import TestCase
 
 _PH = re.compile(r"\{\{\s*(\w+)\s*\}\}")
@@ -53,6 +55,16 @@ def dig(data, path: str):
     return data
 
 
+class _Prefixed:
+    """Gọi qua client dùng chung (ai.http) với URL gốc cố định — không tạo client mới mỗi kịch bản."""
+
+    def __init__(self, base_url: str, timeout: float):
+        self.base, self.timeout = base_url.rstrip("/"), timeout
+
+    def request(self, method: str, path: str, **kw):
+        return _http.request(method, self.base + path, timeout=self.timeout, **kw)
+
+
 def run_api_test(tc: TestCase, base_url: str, *, before_each: Callable[[], None] | None = None,
                  timeout: float = 10.0) -> list[dict]:
     """Chạy test case API với từng data set. Trả về mỗi data set một kết quả:
@@ -60,7 +72,7 @@ def run_api_test(tc: TestCase, base_url: str, *, before_each: Callable[[], None]
      expected_status, actual_status, response_body}."""
     results = []
     data_sets = tc.data_sets or [None]
-    with httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout) as client:
+    with nullcontext(_Prefixed(base_url, timeout)) as client:
         for ds in data_sets:
             if before_each:
                 before_each()

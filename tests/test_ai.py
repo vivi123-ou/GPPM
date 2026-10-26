@@ -338,3 +338,23 @@ def test_generate_many_refills_only_shortfall_and_caps(monkeypatch):
     refill = {"test_cases": [tc("Kịch bản 6"), tc("Thừa 1"), tc("Thừa 2")]}
     cases = test_generator.generate_test_cases("x", count=6, provider=FakeProvider(plan, b1, b2, refill))
     assert len(cases) == 6 and cases[-1].title == "Kịch bản 6"
+
+
+def test_classify_failures_batches_and_skips_sure_heuristics():
+    tc_ok = _login_case()
+    tc_code = {"type": "api", "steps": [{"method": "POST", "path": "/x", "body": {"a": "b\".repeat(9)"}}]}
+    items = [(tc_ok, {"error_msg": "expected status 200, got 500", "actual_status": 500}),
+             (tc_code, {"error_msg": "expected status 422, got 201", "actual_status": 201}),
+             (tc_ok, {"error_msg": "response không chứa total", "actual_status": 201})]
+    fake = FakeProvider({"results": [{"index": 1, "verdict": "app_bug", "explanation": "500"},
+                                     {"index": 2, "verdict": "TEST_BROKEN", "explanation": "kỳ vọng sai"}]})
+    out = classifier.classify_failures(items, provider=fake)
+    assert [o["verdict"] for o in out] == ["app_bug", "test_broken", "test_broken"]
+    assert out[1]["source"] == "heuristic" and len(fake.calls) == 1   # 1 lần gọi AI cho 2 lỗi
+
+
+def test_normalize_strips_plan_labels_from_title():
+    t = test_generator.normalize({"title": "[api/high/happy] Thanh toán hợp lệ — POST /api/shop/checkout with x",
+                                  "steps": []})["title"]
+    assert t == "Thanh toán hợp lệ"
+    assert test_generator.normalize({"title": "Đặt hàng — xem đơn", "steps": []})["title"] == "Đặt hàng — xem đơn"

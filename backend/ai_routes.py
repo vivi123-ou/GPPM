@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from backend import ai_client
+from ai.http import client as _http
 from backend.db import get_conn
 from backend.models import TestCase
 
@@ -70,7 +71,7 @@ def inspect(url: str):
     info = {"url": url, "reachable": False, "status": None, "title": "", "openapi_found": False,
             "endpoints": 0, "api_base": None, "demo_shop": url.startswith(_default_url())}
     try:
-        r = httpx.get(url, timeout=10, follow_redirects=True)
+        r = _http.get(url, timeout=10)
         info.update(reachable=r.status_code < 500, status=r.status_code)
         m = re.search(r"<title[^>]*>(.*?)</title>", r.text, re.I | re.S)
         if m:
@@ -133,7 +134,7 @@ class RunIn(BaseModel):
 def _shop_reset_hook(base: str):
     """Chỉ Demo Shop có /api/shop/bugs: đặt lại kho/đơn hàng nhưng GIỮ các bug flag đang bật."""
     try:
-        r = httpx.get(f"{base}/api/shop/bugs", timeout=5)
+        r = _http.get(f"{base}/api/shop/bugs", timeout=5)
         flags = r.json() if r.status_code == 200 else None
     except Exception:
         flags = None
@@ -141,26 +142,40 @@ def _shop_reset_hook(base: str):
         return None
 
     def before_each():
-        httpx.post(f"{base}/api/shop/reset", timeout=5)
+        _http.post(f"{base}/api/shop/reset", timeout=5)
         for name, on in flags.items():
             if on:
-                httpx.put(f"{base}/api/shop/bugs/{name}", json={"enabled": True}, timeout=5)
+                _http.put(f"{base}/api/shop/bugs/{name}", json={"enabled": True}, timeout=5)
     return before_each
+
+
+def _target(url: str) -> tuple[str, list[str] | None, str]:
+    """(api_base, các path có thật, ngữ cảnh: ràng buộc OpenAPI + dữ liệu thật) của hệ thống đích."""
+    from ai.autopilot import api_base, fetch_samples, find_openapi
+    from ai.test_generator import summarize_openapi
+    spec = find_openapi(url)
+    api_paths = list((spec or {}).get("paths", {})) or None
+    # Dữ liệu thật + ràng buộc API để AI kiểm lại kỳ vọng của test trước khi kết luận "lỗi ứng dụng"
+    context = (summarize_openapi(spec, limit=3000) + "\n\n" + fetch_samples(url, spec)) if spec else ""
+    return api_base(url, spec), api_paths, context
+
+
+def _classify_parallel(failed: list[tuple], api_paths, context) -> list[dict]:
+    """Chia lỗi thành lô 6, các lô chạy song song (AI_PARALLEL)."""
+    from concurrent.futures import ThreadPoolExecutor
+    chunks = [failed[i:i + 6] for i in range(0, len(failed), 6)]
+    with ThreadPoolExecutor(max_workers=max(1, int(os.getenv("AI_PARALLEL", "3")))) as pool:
+        parts = pool.map(lambda ch: ai_client.classify_failures(ch, api_paths, context), chunks)
+    return [v for part in parts for v in part]
 
 
 @router.post("/run")
 def run_tests(body: RunIn):
-    """Chạy thử các test case API trên website đích, AI phân loại từng lỗi."""
-    from ai.autopilot import api_base, find_openapi
+    """Chạy các test case API trên website đích. classify=true: AI phân loại lỗi luôn trong lượt này;
+    giao diện dùng classify=false để hiện kết quả ngay rồi gọi /api/ai/classify sau."""
     from ai.quick_runner import run_api_test
     url = body.url or _default_url()
-    spec = find_openapi(url)
-    base = api_base(url, spec)
-    api_paths = list((spec or {}).get("paths", {})) or None
-    # Dữ liệu thật + ràng buộc API để AI kiểm lại kỳ vọng của test trước khi kết luận "lỗi ứng dụng"
-    from ai.autopilot import fetch_samples
-    from ai.test_generator import summarize_openapi
-    context = (summarize_openapi(spec, limit=3000) + "\n\n" + fetch_samples(url, spec)) if spec else ""
+    base, api_paths, context = _target(url)
 
     cases = _load_cases(body.test_case_ids)
     skipped_ui = [c.id for c in cases if c.type == "ui"]
@@ -177,15 +192,27 @@ def run_tests(body: RunIn):
                 failed.append((tc, item))
             out.append(item)
 
-    # Chạy test tuần tự (shop được reset giữa các lượt) nhưng phân loại lỗi song song
-    from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=max(1, int(os.getenv("AI_PARALLEL", "3")))) as pool:
-        verdicts = pool.map(lambda x: ai_client.classify_failure(x[0], x[1], api_paths, context), failed)
-        for (_, item), verdict in zip(failed, verdicts):
-            item["ai_analysis"] = verdict
+    # Chạy test tuần tự (shop được reset giữa các lượt) nhưng phân loại lỗi theo lô, song song
+    for (_, item), verdict in zip(failed, _classify_parallel(failed, api_paths, context)):
+        item["ai_analysis"] = verdict
     passed = sum(r["status"] == "passed" for r in out)
-    return {"target_url": base, "total": len(out), "passed": passed, "failed": len(out) - passed,
+    return {"target_url": base, "url": url, "total": len(out), "passed": passed, "failed": len(out) - passed,
             "skipped_ui": skipped_ui, "results": out}
+
+
+class ClassifyIn(BaseModel):
+    url: str | None = None
+    items: list[dict]          # các phần tử "results" (không đạt) lấy từ /api/ai/run
+
+
+@router.post("/classify")
+def classify(body: ClassifyIn):
+    """Phân loại một nhóm lỗi (giao diện gọi nhiều nhóm song song sau khi đã hiện kết quả)."""
+    _, api_paths, context = _target(body.url or _default_url())
+    by_id = {c.id: c for c in _load_cases(list({i.get("test_case_id") for i in body.items}))}
+    pairs = [(by_id.get(i.get("test_case_id")) or {"id": i.get("test_case_id"), "type": "api", "steps": []}, i)
+             for i in body.items]
+    return _classify_parallel(pairs, api_paths, context)
 
 
 class AutopilotIn(BaseModel):

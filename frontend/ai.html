@@ -180,6 +180,7 @@
           </template>
         </div>
         <div class="meter mt-4"><div :style="'width:' + passRate() + '%; background: var(--pass)'"></div></div>
+        <p x-show="analyzing > 0" class="mono text-[12px] mt-3" style="color: var(--accent)" x-text="'› đang phân tích nguyên nhân ' + analyzing + ' kịch bản không đạt…'"></p>
         <p class="label mt-2" x-text="'hệ thống: ' + (report?.target_url || '') + (report?.skipped_ui?.length ? (' · ' + report.skipped_ui.length + ' kịch bản UI không nằm trong lượt thực thi API') : '')"></p>
 
         <div class="rows mt-6 max-h-[640px] overflow-auto scroll">
@@ -199,6 +200,10 @@
                       <span class="dim" x-text="'→ ' + (r.actual_status ?? '')"></span></div>
                     <div class="err" x-text="'✗ ' + r.error_msg"></div>
                   </div></div>
+                  <div x-show="r.pending" class="flex gap-3 items-center text-sm">
+                    <span class="tag"><span class="spin" style="border-color: var(--line-2); border-top-color: var(--ink); width: 9px; height: 9px; margin-right: 6px"></span>đang phân tích</span>
+                    <span class="small">Đang xác định nguyên nhân…</span>
+                  </div>
                   <template x-if="r.ai_analysis">
                     <div class="flex gap-3 items-start text-sm">
                       <span class="tag shrink-0" :class="verdictCls[r.ai_analysis.verdict]" x-text="verdictLabel[r.ai_analysis.verdict] || r.ai_analysis.verdict"></span>
@@ -251,7 +256,7 @@ function lab() {
   return {
     url: shopUrl, info: null, mode: 'requirement', reqText: '', sample: SHOP_REQ, view: '', count: 0,
     flags: {}, cases: [], reqs: [], picked: [], onlyThis: true, report: null, open: null,
-    summary: '', busy: false, busyMsg: '', error: '', toast: '',
+    summary: '', busy: false, busyMsg: '', error: '', toast: '', analyzing: 0,
     verdictLabel: {app_bug: 'lỗi ứng dụng', test_broken: 'lỗi kịch bản', flaky: 'không ổn định'},
     verdictCls: {app_bug: 'tag-solid-fail', test_broken: 'tag-solid-warn', flaky: 'tag-solid-ink'},
     flagLabel: {wrong_total: 'Sai tổng tiền', allow_empty_email: 'Bỏ kiểm tra email', ignore_stock: 'Bỏ kiểm tra tồn kho', ui_v2: 'Giao diện v2'},
@@ -347,12 +352,37 @@ function lab() {
         await this.loadCases(); this.flash('Đã bổ sung dữ liệu kiểm thử cho ' + id + '.');
       });
     },
-    run() {
-      return this.call('testpilot run --cases ' + this.runnable().length + ' …', async () => {
+    async run() {
+      await this.call('testpilot run --cases ' + this.runnable().length + ' …', async () => {
         const ids = this.runnable().map(c => c.id);
-        this.report = await this.post('/api/ai/run', {test_case_ids: ids, url: this.url});
+        // Hiện kết quả ngay; phân loại lỗi chạy sau, song song theo lô
+        this.report = await this.post('/api/ai/run', {test_case_ids: ids, url: this.url, classify: false});
         if (this.info?.demo_shop) this.$refs.site.src = this.previewUrl();
       });
+      if (this.report) this.classifyReport();
+    },
+    async classifyReport() {
+      const fails = this.report.results.filter(r => r.status === 'failed');
+      if (!fails.length) return;
+      fails.forEach(r => r.pending = true);
+      this.analyzing = fails.length;
+      const chunks = [];
+      for (let i = 0; i < fails.length; i += 6) chunks.push(fails.slice(i, i + 6));
+      let next = 0;
+      const worker = async () => {
+        while (next < chunks.length) {
+          const ch = chunks[next++];
+          try {
+            const items = ch.map(({pending, ai_analysis, ...rest}) => rest);
+            const verdicts = await this.post('/api/ai/classify', {url: this.url, items});
+            ch.forEach((r, k) => { r.ai_analysis = verdicts[k]; });
+          } catch (e) { /* lô lỗi: giữ kết quả, bỏ phần phân tích */ }
+          ch.forEach(r => r.pending = false);
+          this.analyzing -= ch.length;
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      TP.refreshStatus();
     },
     exportCases() {
       const ids = (this.picked.length ? this.picked : this.visible().map(c => c.id)).join(',');

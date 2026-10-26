@@ -91,6 +91,55 @@ def classify_failure(test_case: TestCase | dict, result: dict, requirement_text:
         return {**hint, "source": "heuristic", "ai_error": str(e)[:200]}
 
 
+SURE = 0.85      # heuristic chắc chắn tới mức này thì không cần hỏi AI
+
+
+def classify_failures(items: list[tuple[TestCase | dict, dict]], api_paths: list[str] | None = None,
+                      context: str = "", provider: LLMProvider | None = None, batch_size: int = 6) -> list[dict]:
+    """Phân loại nhiều lỗi: gom tối đa batch_size lỗi vào một lần gọi AI (ít lượt gọi, ít token
+    vì phần ngữ cảnh hệ thống chỉ gửi một lần). Lỗi mà heuristic đã chắc chắn thì không gọi AI."""
+    out: list[dict | None] = [None] * len(items)
+    hints = [heuristic(tc, res, api_paths) for tc, res in items]
+    ask = []
+    for i, h in enumerate(hints):
+        if h["confidence"] >= SURE:
+            out[i] = {**h, "source": "heuristic"}
+        else:
+            ask.append(i)
+
+    ctx = ("System context (real data and API constraints):\n" + context[:5000]) if context else ""
+    if api_paths:
+        ctx += "\nAPI paths that really exist in the system: " + ", ".join(api_paths)
+    for start in range(0, len(ask), batch_size):
+        chunk = ask[start:start + batch_size]
+        blocks = []
+        for n, i in enumerate(chunk, 1):
+            tc, res = items[i]
+            tc_json = (tc.model_dump_json(exclude_none=True) if isinstance(tc, TestCase)
+                       else json.dumps(tc, ensure_ascii=False, default=str))
+            blocks.append(f"### Test {n}\nTest case: {tc_json[:1800]}\nExecution result: {_compact(res, 1500)}\n"
+                          f"Heuristic (may be wrong): {json.dumps(hints[i], ensure_ascii=False)}")
+        try:
+            llm = provider or get_provider()
+            data = llm.complete_json(prompts.CLASSIFY_SYSTEM, prompts.CLASSIFY_BATCH_USER.format(
+                context=ctx, items="\n\n".join(blocks)))
+            rows = data.get("results") if isinstance(data, dict) else data
+            for row in rows or []:
+                n = int(row.get("index", 0)) if isinstance(row, dict) else 0
+                verdict = str(row.get("verdict", "")).lower().strip() if n else ""
+                if 1 <= n <= len(chunk) and verdict in VERDICTS:
+                    i = chunk[n - 1]
+                    out[i] = {"verdict": verdict, "confidence": _float(row.get("confidence"), 0.7),
+                              "explanation": str(row.get("explanation") or hints[i]["explanation"]),
+                              "suggested_fix": str(row.get("suggested_fix") or ""), "source": "ai"}
+        except Exception as e:
+            for i in chunk:
+                if out[i] is None:
+                    out[i] = {**hints[i], "source": "heuristic", "ai_error": str(e)[:200]}
+    # AI bỏ sót mục nào thì dùng heuristic
+    return [o if o is not None else {**hints[i], "source": "heuristic"} for i, o in enumerate(out)]
+
+
 def _path_match(template: str, path: str) -> bool:
     """/api/orders/{id} khớp /api/orders/5."""
     t, p = template.strip("/").split("/"), path.strip("/").split("/")

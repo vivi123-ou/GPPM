@@ -99,7 +99,7 @@ BATCH_USER = """Requirement:
 \"\"\"
 {context}
 Write exactly {count} test cases, one for each scenario below, in the same order.
-Keep each title as given.
+Use the text after "title:" exactly as the test case title (no brackets, no endpoint, no notes).
 {scenarios}"""
 
 REPAIR_USER = """Some of your test cases do not match the schema. Errors:
@@ -193,6 +193,15 @@ Execution result:
 Heuristic pre-analysis (may be wrong): {hint}
 
 {context}"""
+
+CLASSIFY_BATCH_USER = """Classify each failed test below independently.
+
+{context}
+
+{items}
+
+Respond with JSON: {{"results": [{{"index": <test number>, "verdict": "app_bug|test_broken|flaky",
+"confidence": 0.0-1.0, "explanation": "...", "suggested_fix": "..."}}]}} — exactly one entry per test."""
 
 HEAL_SYSTEM = """You are a self-healing locator engine for UI tests. A test step failed because
 its locator no longer matches. Given the old target and the candidate elements of the NEW
