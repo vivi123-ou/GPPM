@@ -115,7 +115,14 @@
 
           <div class="mt-4">
             <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" x-model="needLogin"> Website yêu cầu đăng nhập</label>
-            <div x-show="needLogin" x-cloak class="grid sm:grid-cols-2 gap-2 mt-3">
+            <template x-if="needLogin && info?.demo_account?.available">
+              <label class="flex items-center gap-2 text-sm cursor-pointer mt-3 border border-dashed p-3" style="border-color: var(--line-2)">
+                <input type="checkbox" x-model="useDemo">
+                <span>Dùng tài khoản demo của shop <span class="mono" x-text="info.demo_account.email"></span></span>
+                <span class="label ml-auto">mật khẩu lấy từ .env trên server</span>
+              </label>
+            </template>
+            <div x-show="needLogin && !(useDemo && info?.demo_account?.available)" x-cloak class="grid sm:grid-cols-2 gap-2 mt-3">
               <input x-model="loginUser" class="field" placeholder="Tài khoản thử nghiệm" autocomplete="off">
               <input x-model="loginPass" type="password" class="field" placeholder="Mật khẩu" autocomplete="new-password">
               <p class="label sm:col-span-2">Chỉ dùng tài khoản thử nghiệm. Mật khẩu không được gửi cho AI, chỉ dùng khi trình duyệt thực thi; được che khi xuất báo cáo.</p>
@@ -315,7 +322,7 @@ function lab() {
     url: shopUrl, info: null, mode: 'requirement', reqText: '', sample: SHOP_REQ, view: '', count: 0,
     flags: {}, cases: [], reqs: [], picked: [], onlyThis: true, report: null, open: null,
     summary: '', busy: false, busyMsg: '', error: '', toast: '', analyzing: 0,
-    needLogin: false, loginUser: '', loginPass: '', mock: false,
+    needLogin: false, loginUser: '', loginPass: '', useDemo: true, mock: false,
     verdictLabel: {app_bug: 'lỗi ứng dụng', test_broken: 'lỗi kịch bản', flaky: 'không ổn định'},
     verdictCls: {app_bug: 'tag-solid-fail', test_broken: 'tag-solid-warn', flaky: 'tag-solid-ink'},
     flagLabel: {wrong_total: 'Sai tổng tiền', allow_empty_email: 'Bỏ kiểm tra email', ignore_stock: 'Bỏ kiểm tra tồn kho', ui_v2: 'Giao diện v2'},
@@ -386,6 +393,7 @@ function lab() {
         const data = await r.json();
         if (!r.ok) { this.info = null; throw new Error(data.detail); }
         this.info = data; this.mode = data.recommended;
+        this.needLogin = !!data.demo_account?.available; this.useDemo = true;
         if (!this.presets.some(p => p.url === this.url)) { this.view = ''; this.sample = ''; }
         this.flags = data.demo_shop ? await (await fetch('/api/shop/bugs')).json() : {};
       });
@@ -401,8 +409,9 @@ function lab() {
     },
     autopilot() {
       return this.call('testpilot explore … (1–2 phút)', async () => {
-        const r = await this.post('/api/ai/autopilot', {url: this.url,
-          username: this.needLogin ? this.loginUser : null, password: this.needLogin ? this.loginPass : null});
+        const demo = this.needLogin && this.useDemo && this.info?.demo_account?.available;
+        const r = await this.post('/api/ai/autopilot', {url: this.url, use_demo_account: !!demo,
+          username: this.needLogin && !demo ? this.loginUser : null, password: this.needLogin && !demo ? this.loginPass : null});
         this.summary = `<b>Tổng quan hệ thống.</b> ${r.app_summary || '—'}<br><span class="small">Đã khảo sát ${r.pages.length} trang`
           + (r.openapi_found ? ' và tài liệu OpenAPI' : '') + `, đề xuất ${r.test_cases.length} kịch bản.`
           + (r.warnings?.length ? ` ${r.warnings.length} kịch bản bị loại do không đúng định dạng.` : '') + '</span>';

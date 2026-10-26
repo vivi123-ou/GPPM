@@ -88,7 +88,15 @@ def inspect(url: str):
                     title=info["title"] or (spec.get("info") or {}).get("title", ""))
         info["reachable"] = True
     info["recommended"] = "requirement" if info["openapi_found"] else "autopilot"
+    info["demo_account"] = _demo_account() if info["demo_shop"] else None
     return info
+
+
+def _demo_account() -> dict | None:
+    """Tài khoản demo của Demo Shop (SHOP_DEMO_EMAIL/PASSWORD trong .env). Chỉ trả email cho giao diện;
+    mật khẩu ở lại server và chỉ dùng khi trình duyệt thực thi."""
+    email = os.getenv("SHOP_DEMO_EMAIL", "").strip()
+    return {"email": email, "available": bool(os.getenv("SHOP_DEMO_PASSWORD"))} if email else None
 
 
 @router.get("/requirements")
@@ -259,6 +267,7 @@ class AutopilotIn(BaseModel):
     include_api: bool = True
     username: str | None = None      # tài khoản thử nghiệm (tuỳ chọn) cho website cần đăng nhập
     password: str | None = None
+    use_demo_account: bool = False   # Demo Shop: dùng tài khoản demo trong .env (mật khẩu không qua trình duyệt)
 
 
 @router.post("/autopilot")
@@ -271,6 +280,8 @@ def autopilot(body: AutopilotIn):
         else:
             from ai.autopilot import autopilot as real
             login = {"username": body.username, "password": body.password} if body.username and body.password else None
+            if body.use_demo_account and os.getenv("SHOP_DEMO_EMAIL") and os.getenv("SHOP_DEMO_PASSWORD"):
+                login = {"username": os.getenv("SHOP_DEMO_EMAIL"), "password": os.getenv("SHOP_DEMO_PASSWORD")}
             r = real(url, include_api=body.include_api, login=login)
     except Exception as e:
         raise HTTPException(502, f"Autopilot lỗi: {e}")
