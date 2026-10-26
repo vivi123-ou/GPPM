@@ -280,6 +280,20 @@ Kết quả thử thật: Petstore 4 test (3 pass, 1 fail: tạo thú cưng hợ
 
 File Excel test case gồm 4 sheet: **Tổng quan** (số lượng theo loại / ưu tiên, model AI), **Test cases** (mỗi bước một dòng: hành động, đối tượng, dữ liệu, kết quả mong đợi), **Dữ liệu test** (bộ dữ liệu hợp lệ / không hợp lệ, tô màu), **Yêu cầu** (yêu cầu gốc). Báo cáo kết quả gồm tỉ lệ pass, số lỗi theo nhãn AI và từng lượt chạy kèm giải thích, đề xuất sửa. CSV có BOM để Excel mở đúng tiếng Việt.
 
+### Tự động toàn bộ cho website bất kỳ
+
+Trang **Kiểm thử** → nhập URL → **Kiểm tra** → tab *Tự động khám phá* → **Tự động toàn bộ →**:
+TestPilot mở website bằng trình duyệt, khảo sát các trang, tạo kịch bản (UI, kèm API nếu có OpenAPI),
+**thực thi** (API bằng HTTP, giao diện bằng Playwright), phân loại nguyên nhân lỗi và **tự tải báo cáo Excel**.
+
+- **Website cần đăng nhập**: tích *Website yêu cầu đăng nhập* và nhập tài khoản thử nghiệm. TestPilot đăng nhập trước
+  rồi khảo sát các trang bên trong. Mật khẩu **không gửi cho AI** (AI chỉ dùng `{{username}}`/`{{password}}`), chỉ dùng khi
+  trình duyệt thực thi và được che (`••••••`) trong file xuất. Không có tài khoản thì chỉ khảo sát trang đăng nhập và trang công khai.
+- **Kịch bản giao diện**: mỗi lượt không đạt có ảnh chụp màn hình và nhật ký từng bước.
+- **Self-healing**: khi không tìm thấy phần tử, TestPilot gửi DOM hiện tại cho AI đề xuất locator thay thế, chạy thử ngay;
+  nếu thành công, báo cáo hiện bản sửa kèm nút **Áp dụng** (ghi vào kịch bản, tăng phiên bản).
+- Tự nhận diện OpenAPI/Swagger ở các đường dẫn phổ biến (`/openapi.json`, `/swagger/v1/swagger.json`, `/v3/api-docs`, …).
+
 ### Hướng dẫn 3: Chạy test case từ file (dòng lệnh)
 
 Web phải đang chạy (Hướng dẫn 1) để có Demo Shop.
@@ -317,9 +331,11 @@ Chạy trên Demo Shop với Gemini (`gemini-3.5-flash`), yêu cầu đặt hàn
 | `GET` | `/api/ai/inspect?url=...` | Kiểm tra hệ thống: kết nối, OpenAPI, số endpoint, phương pháp đề xuất |
 | `POST` | `/api/ai/generate` | `{"text", "url", "count"}` → tạo kịch bản (count tối đa 150) |
 | `POST` | `/api/ai/run` | `{"test_case_ids": [...], "url"}` → chạy test API + AI phân loại lỗi |
-| `POST` | `/api/ai/autopilot` | `{"url": "..."}` → AI khám phá và sinh test (mặc định lưu vào danh sách) |
+| `POST` | `/api/ai/autopilot` | `{"url", "username"?, "password"?}` → khảo sát website (đăng nhập nếu có tài khoản) và tạo kịch bản |
 | `POST` | `/api/ai/test-data/{id}?save=true` | Sinh dữ liệu EP/BVA cho một test case |
 | `POST` | `/api/ai/heal` | `{"step": {...}, "url": "..."}` → đề xuất locator mới |
+| `POST` | `/api/ai/heal/apply` | `{"test_case_id", "step_idx", "new_target"}` → áp dụng bản sửa locator |
+| `POST` | `/api/ai/classify` | `{"items": [...], "url"}` → phân loại nguyên nhân (theo lô) |
 | `POST` | `/api/ai/impact` | `{"old_text", "new_text"}` → test bị ảnh hưởng |
 | `GET` | `/api/export/test-cases.xlsx?ids=...` | Tài liệu test case (Excel) |
 | `GET` | `/api/export/test-cases.csv?ids=...` | Test case dạng CSV |

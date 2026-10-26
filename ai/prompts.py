@@ -166,6 +166,15 @@ Pages discovered:
 
 Propose between {min_cases} and {max_cases} test cases. Titles in Vietnamese."""
 
+AUTOPILOT_LOGIN_OK = """The site requires login (login page: {login_page}) and a test account is available.
+- Use the placeholders "{{{{username}}}}" and "{{{{password}}}}" for it, and give such test cases a data set whose
+  values are exactly {{"username": "__USERNAME__", "password": "__PASSWORD__"}} (real values are injected later).
+- Every test of a page behind login must first goto {login_page}, fill the credentials and submit.
+- Also add negative login tests with obviously wrong credentials (literal values, not the markers)."""
+
+AUTOPILOT_LOGIN_NONE = """The site shows a login page ({login_page}) and no test account was provided, so pages behind
+login are unknown. Focus on the login page (validation, wrong credentials, empty fields, links) and public pages."""
+
 CLASSIFY_SYSTEM = """You are a test-failure triage expert. Classify a failed test into exactly one verdict:
 - "app_bug": the application behaves wrongly versus the requirement / expected result
   (wrong status code, wrong total, missing validation, wrong text).

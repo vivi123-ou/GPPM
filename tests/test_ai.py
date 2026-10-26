@@ -358,3 +358,28 @@ def test_normalize_strips_plan_labels_from_title():
                                   "steps": []})["title"]
     assert t == "Thanh toán hợp lệ"
     assert test_generator.normalize({"title": "Đặt hàng — xem đơn", "steps": []})["title"] == "Đặt hàng — xem đơn"
+
+
+def test_autopilot_login_markers_are_replaced_and_password_not_sent(monkeypatch):
+    monkeypatch.setattr("ai.autopilot.find_openapi", lambda url: None)
+    login_html = """<html><body><form><input name="login" placeholder="Tên đăng nhập">
+      <input type="password" name="password" placeholder="Mật khẩu"><button type="submit">Đăng nhập</button></form></body></html>"""
+    fake = FakeProvider({"app_summary": "LMS", "test_cases": [{"title": "Đăng nhập đúng", "type": "ui",
+        "data_sets": [{"name": "ok", "values": {"username": "__USERNAME__", "password": "__PASSWORD__"}}],
+        "steps": [{"action": "goto", "url": "/login"},
+                  {"action": "fill", "target": {"role": "textbox", "name": "Tên đăng nhập"}, "value": "{{username}}"},
+                  {"action": "fill", "target": {"role": "textbox", "name": "Mật khẩu"}, "value": "{{password}}"},
+                  {"action": "click", "target": {"role": "button", "name": "Đăng nhập"}}]}]})
+    from ai import autopilot as ap
+    monkeypatch.setattr(ap, "explore", lambda url, max_pages, login: (
+        [{"path": "/login", "title": "Đăng nhập", "html": login_html, "after_login": False}],
+        {"login_page": "/login", "attempted": True, "success": True}))
+    r = ap.autopilot("https://lms.example", provider=fake, login={"username": "sv01", "password": "S3cret!"})
+    assert r["test_cases"][0].data_sets[0].values == {"username": "sv01", "password": "S3cret!"}
+    assert "S3cret!" not in fake.calls[0][1] and "__USERNAME__" in fake.calls[0][1]
+
+
+def test_export_masks_passwords():
+    from backend.export import _j
+    out = _j({"username": "sv01", "password": "S3cret!", "nested": {"api_token": "abc"}})
+    assert "S3cret!" not in out and "abc" not in out and "sv01" in out

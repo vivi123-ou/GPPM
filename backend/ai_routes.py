@@ -171,23 +171,29 @@ def _classify_parallel(failed: list[tuple], api_paths, context) -> list[dict]:
 
 @router.post("/run")
 def run_tests(body: RunIn):
-    """Chạy các test case API trên website đích. classify=true: AI phân loại lỗi luôn trong lượt này;
-    giao diện dùng classify=false để hiện kết quả ngay rồi gọi /api/ai/classify sau."""
+    """Chạy các test case (API bằng HTTP, UI bằng Playwright) trên website đích.
+    classify=true: AI phân loại lỗi luôn trong lượt này; giao diện dùng classify=false để hiện
+    kết quả ngay rồi gọi /api/ai/classify sau."""
     from ai.quick_runner import run_api_test
+    from ai.ui_runner import run_ui_tests
     url = body.url or _default_url()
     base, api_paths, context = _target(url)
 
     cases = _load_cases(body.test_case_ids)
-    skipped_ui = [c.id for c in cases if c.type == "ui"]
-    cases = [c for c in cases if c.type == "api"]
     if not cases:
-        raise HTTPException(404, "Không có test case API nào để chạy (test UI cần Runner UI)")
+        raise HTTPException(404, "Không có kịch bản nào để thực thi")
     before_each = _shop_reset_hook(base) if body.reset_shop else None
+
+    ui_cases = [c for c in cases if c.type == "ui"]
+    if ui_cases and before_each:
+        before_each()
+    ui_results = run_ui_tests(ui_cases, url) if ui_cases else {}
 
     out, failed = [], []
     for tc in cases:
-        for res in run_api_test(tc, base, before_each=before_each):
-            item = {"test_case_id": tc.id, "title": tc.title, **res}
+        results = ui_results.get(tc.id, []) if tc.type == "ui" else run_api_test(tc, base, before_each=before_each)
+        for res in results:
+            item = {"test_case_id": tc.id, "title": tc.title, "type": tc.type, **res}
             if res["status"] == "failed" and body.classify:
                 failed.append((tc, item))
             out.append(item)
@@ -197,7 +203,29 @@ def run_tests(body: RunIn):
         item["ai_analysis"] = verdict
     passed = sum(r["status"] == "passed" for r in out)
     return {"target_url": base, "url": url, "total": len(out), "passed": passed, "failed": len(out) - passed,
-            "skipped_ui": skipped_ui, "results": out}
+            "skipped_ui": [], "results": out}
+
+
+class HealApplyIn(BaseModel):
+    test_case_id: str
+    step_idx: int
+    new_target: dict
+
+
+@router.post("/heal/apply")
+def heal_apply(body: HealApplyIn):
+    """Duyệt bản sửa self-healing: ghi locator mới vào bước tương ứng (tăng version)."""
+    from backend.models import Target
+    cases = _load_cases([body.test_case_id])
+    if not cases or not 0 <= body.step_idx < len(cases[0].steps):
+        raise HTTPException(404, "Không thấy kịch bản hoặc bước")
+    tc = cases[0]
+    tc.steps[body.step_idx].target = Target.model_validate(body.new_target)
+    conn = get_conn()
+    conn.execute("UPDATE test_cases SET json=?, version=version+1 WHERE id=?", (tc.model_dump_json(), tc.id))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "test_case": tc.model_dump(exclude_none=True)}
 
 
 class ClassifyIn(BaseModel):
@@ -219,6 +247,8 @@ class AutopilotIn(BaseModel):
     url: str | None = None
     save: bool = True
     include_api: bool = True
+    username: str | None = None      # tài khoản thử nghiệm (tuỳ chọn) cho website cần đăng nhập
+    password: str | None = None
 
 
 @router.post("/autopilot")
@@ -230,7 +260,8 @@ def autopilot(body: AutopilotIn):
             r = ai_client.autopilot(url)
         else:
             from ai.autopilot import autopilot as real
-            r = real(url, include_api=body.include_api)
+            login = {"username": body.username, "password": body.password} if body.username and body.password else None
+            r = real(url, include_api=body.include_api, login=login)
     except Exception as e:
         raise HTTPException(502, f"Autopilot lỗi: {e}")
     if body.save and r["test_cases"]:

@@ -44,8 +44,18 @@ def _load(ids: str | None):
     return cases, reqs
 
 
+def _mask(v):
+    """Che mật khẩu / token trong tài liệu xuất ra."""
+    if isinstance(v, dict):
+        return {k: ("••••••" if any(w in k.lower() for w in ("pass", "token", "secret")) and isinstance(x, str) and x
+                    else _mask(x)) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_mask(x) for x in v]
+    return v
+
+
 def _j(v) -> str:
-    return "" if v in (None, "", {}, []) else json.dumps(v, ensure_ascii=False)
+    return "" if v in (None, "", {}, []) else json.dumps(_mask(v), ensure_ascii=False)
 
 
 def describe_step(s: Step) -> tuple[str, str, str, str]:

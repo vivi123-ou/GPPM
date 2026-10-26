@@ -90,11 +90,11 @@ class _Parser(HTMLParser):
         if self._skip:
             return
         el = None
-        if (tag in _INTERACTIVE or tag in _TEXT_ROLES_TAGS or "data-testid" in attrs
+        if (tag in _INTERACTIVE or tag in _TEXT_ROLES_TAGS or "data-testid" in attrs or "data-test" in attrs or "data-qa" in attrs
                 or attrs.get("role")):
             if attrs.get("type", "").lower() != "hidden":
                 el = Element(tag=tag, role=_implicit_role(tag, attrs),
-                             testid=attrs.get("data-testid") or None,
+                             testid=attrs.get("data-testid") or attrs.get("data-test") or attrs.get("data-qa") or None,
                              id=attrs.get("id") or None, attrs=attrs)
                 self.elements.append(el)
         if tag in _VOID:

@@ -22,7 +22,8 @@ from ai.test_generator import _prefix_for, _validate_all, generate_test_cases, i
 from backend.models import TestCase
 
 OPENAPI_PATHS = ("/openapi.json", "/api/openapi.json", "/swagger.json", "/api-docs", "/v3/api-docs",
-                 "/api/v3/openapi.json", "/v2/swagger.json")
+                 "/api/v3/openapi.json", "/v2/swagger.json", "/swagger/v1/swagger.json", "/v2/api-docs",
+                 "/api/swagger.json", "/swagger/doc.json", "/api/v1/openapi.json", "/docs/openapi.json")
 
 
 def find_openapi(base_url: str, timeout: float = 5.0) -> dict | None:
@@ -72,15 +73,53 @@ def fetch_samples(base_url: str, spec: dict, per_endpoint: int = 1200, timeout: 
     return "\n".join(out)
 
 
-def explore(start_url: str, max_pages: int = 6, timeout_ms: int = 10000) -> list[dict]:
-    """BFS các trang cùng origin, trả về [{url, path, title, html}]."""
+_SKIP_LINK = ("logout", "log-out", "signout", "sign-out", "dang-xuat", "dangxuat")   # giữ phiên đăng nhập
+USER_MARK, PASS_MARK = "__USERNAME__", "__PASSWORD__"
+
+
+def _settle(page, ms: int = 3000):
+    try:
+        page.wait_for_load_state("networkidle", timeout=ms)
+    except Exception:
+        pass
+
+
+def try_login(page, username: str, password: str) -> dict:
+    """Trang có ô mật khẩu → điền tài khoản thử nghiệm và gửi form. Trả về {attempted, success, url}."""
+    pw_box = page.locator("input[type=password]:visible")
+    if pw_box.count() == 0:
+        return {"attempted": False, "success": False, "url": page.url}
+    before = page.url
+    user_box = page.locator("input:visible:not([type=password]):not([type=hidden]):not([type=checkbox])"
+                            ":not([type=radio]):not([type=submit]):not([type=button])").first
+    try:
+        user_box.fill(username, timeout=5000)
+        pw_box.first.fill(password, timeout=5000)
+        submit = page.locator("button[type=submit]:visible, input[type=submit]:visible")
+        if submit.count():
+            submit.first.click(timeout=5000)
+        else:
+            pw_box.first.press("Enter")
+        page.wait_for_load_state("load", timeout=15000)
+        _settle(page, 4000)
+    except Exception:
+        pass
+    success = page.url != before or page.locator("input[type=password]:visible").count() == 0
+    return {"attempted": True, "success": success, "url": page.url}
+
+
+def explore(start_url: str, max_pages: int = 6, timeout_ms: int = 15000,
+            login: dict | None = None) -> tuple[list[dict], dict]:
+    """BFS các trang cùng origin, trả về ([{url, path, title, html, after_login}], thông tin đăng nhập).
+    login={"username","password"}: gặp trang đăng nhập thì đăng nhập trước rồi mới khám phá tiếp."""
     from playwright.sync_api import sync_playwright   # import muộn: chỉ cần khi dùng Autopilot
 
     origin = urlparse(start_url)
     seen, queue, pages = set(), deque([start_url]), []
+    auth = {"login_page": None, "attempted": False, "success": False}
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
-        page = browser.new_page()
+        page = browser.new_page(viewport={"width": 1280, "height": 800}, locale="vi-VN")
         try:
             while queue and len(pages) < max_pages:
                 url = queue.popleft().split("#")[0]
@@ -88,32 +127,48 @@ def explore(start_url: str, max_pages: int = 6, timeout_ms: int = 10000) -> list
                     continue
                 seen.add(url)
                 try:
-                    page.goto(url, timeout=timeout_ms, wait_until="networkidle")
+                    page.goto(url, timeout=timeout_ms, wait_until="load")   # networkidle dễ treo với SPA
+                    _settle(page)
                 except Exception:
                     continue
-                html = page.content()
-                pages.append({"url": page.url, "path": urlparse(page.url).path or "/",
-                              "title": page.title(), "html": html})
+                seen.add(page.url.split("#")[0])
+                has_login = page.locator("input[type=password]:visible").count() > 0
+                pages.append({"url": page.url, "path": urlparse(page.url).path or "/", "title": page.title(),
+                              "html": page.content(), "after_login": auth["success"], "login_form": has_login})
+                if has_login and not auth["login_page"]:
+                    auth["login_page"] = urlparse(page.url).path or "/"
+                    if login and login.get("username") and login.get("password") and not auth["attempted"]:
+                        auth.update(try_login(page, login["username"], login["password"]))
+                        if auth["success"]:
+                            queue.appendleft(page.url)          # khám phá trang sau đăng nhập trước
+                            seen.discard(page.url.split("#")[0])
                 for href in page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)"):
                     u = urlparse(href)
-                    if u.scheme in ("http", "https") and u.netloc == origin.netloc and href not in seen:
+                    if (u.scheme in ("http", "https") and u.netloc == origin.netloc and href not in seen
+                            and not any(k in href.lower() for k in _SKIP_LINK)):
                         queue.append(href)
         finally:
             browser.close()
-    return pages
+    return pages, auth
 
 
 def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: int = 10,
               provider: LLMProvider | None = None, pages: list[dict] | None = None,
-              include_api: bool = True) -> dict:
+              include_api: bool = True, login: dict | None = None) -> dict:
     """Trả về {"app_summary", "pages": [{path,title,elements}], "test_cases": [TestCase],
-    "openapi_found": bool}. Truyền sẵn `pages` để bỏ qua bước mở trình duyệt."""
+    "openapi_found": bool, "auth": {...}}. Truyền sẵn `pages` để bỏ qua bước mở trình duyệt.
+
+    login={"username","password"}: tài khoản thử nghiệm. Mật khẩu KHÔNG gửi cho AI — AI chỉ dùng
+    {{username}}/{{password}}, giá trị thật được điền vào data_sets sau khi sinh."""
     llm = provider or get_provider()
-    pages = pages if pages is not None else explore(url, max_pages=max_pages)
+    auth = {"login_page": None, "attempted": False, "success": False}
+    if pages is None:
+        pages, auth = explore(url, max_pages=max_pages, login=login)
     page_infos = []
     for p in pages:
         els = extract_elements(p.get("html", ""), limit=60)
-        page_infos.append({"path": p.get("path", "/"), "title": p.get("title", ""),
+        tag = " (sau khi đăng nhập)" if p.get("after_login") else ""
+        page_infos.append({"path": p.get("path", "/"), "title": (p.get("title", "") + tag),
                            "elements": format_elements(els)})
 
     test_cases: list[TestCase] = []
@@ -124,6 +179,10 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
         pages_txt = "\n\n".join(f"## {pi['path']} — {pi['title']}\n{pi['elements']}" for pi in page_infos)
         user = prompts.AUTOPILOT_USER.format(base_url=url, pages=pages_txt[:20000],
                                              min_cases=min_cases, max_cases=max_cases)
+        if auth["login_page"]:
+            user += "\n\n" + (prompts.AUTOPILOT_LOGIN_OK.format(login_page=auth["login_page"])
+                              if auth["success"] else
+                              prompts.AUTOPILOT_LOGIN_NONE.format(login_page=auth["login_page"]))
         data = llm.complete_json(prompts.AUTOPILOT_SYSTEM, user)
         summary = str(data.get("app_summary", "")) if isinstance(data, dict) else ""
         cases, errors = _validate_all(_safe_list(data))
@@ -139,7 +198,10 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
             except Exception as e:
                 warnings.append(f"AI sửa lỗi schema thất bại: {e}")
         warnings += [f"Bỏ test lệch schema: {e}" for e in errors]
-        test_cases += [c for c in cases if c.type == "ui"]
+        test_cases += [_inject_login(c, login) for c in cases if c.type == "ui"]
+    if auth["login_page"] and not auth["success"]:
+        warnings.append("Website yêu cầu đăng nhập" + (": đăng nhập bằng tài khoản thử nghiệm không thành công"
+                        if auth["attempted"] else "; chưa cung cấp tài khoản thử nghiệm nên chỉ khảo sát trang công khai"))
 
     spec = find_openapi(url)
     if spec and not include_api:
@@ -161,7 +223,20 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
             tc.id = f"{prefix}U-{ui_i:02d}"
     return {"app_summary": summary, "openapi_found": spec is not None,
             "pages": [{"path": pi["path"], "title": pi["title"]} for pi in page_infos],
-            "test_cases": test_cases, "warnings": warnings}
+            "test_cases": test_cases, "warnings": warnings, "auth": auth}
+
+
+def _inject_login(tc: TestCase, login: dict | None) -> TestCase:
+    """Thay dấu __USERNAME__/__PASSWORD__ trong data_sets bằng tài khoản thử nghiệm thật."""
+    if not login:
+        return tc
+    for d in tc.data_sets:
+        for k, v in list(d.values.items()):
+            if v == USER_MARK:
+                d.values[k] = login.get("username", "")
+            elif v == PASS_MARK:
+                d.values[k] = login.get("password", "")
+    return tc
 
 
 def _safe_list(data) -> list:
