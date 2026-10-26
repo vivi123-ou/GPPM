@@ -18,7 +18,7 @@ pytest                    # test module AI bằng provider giả, không cần k
 |---|---|
 | `USE_MOCK` | `1` = trả dữ liệu trong `backend/mocks/`, `0` = gọi AI thật |
 | `LLM_PROVIDER` | `gemini` (mặc định), `groq`, `openai` (ChatGPT, trả phí), `ollama` |
-| `LLM_MODEL` | Ghi đè model mặc định (`gemini-3.5-flash`, `llama-3.3-70b-versatile`, `qwen2.5:7b`) |
+| `LLM_MODEL` | Ghi đè model mặc định (`gemini-3.5-flash`, `openai/gpt-oss-120b`, `qwen2.5:7b`) |
 | `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_URL` | Khoá / địa chỉ của provider |
 | `DEMO_SHOP_URL` | Nếu đặt, AI đọc `/openapi.json` của Demo Shop để dùng đúng path API |
 

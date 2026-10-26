@@ -8,31 +8,45 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800" x-data="lab()" x-init="init()">
-  <header class="bg-slate-900 text-white px-6 py-3 flex items-center gap-4">
+  <header class="bg-slate-900 text-white px-6 py-3 flex flex-wrap items-center gap-4">
     <span class="text-lg font-semibold">✈️ TestPilot · AI Lab</span>
     <a href="/" class="text-sm text-slate-300 hover:text-white">← Dashboard</a>
-    <span class="ml-auto text-xs text-slate-300" x-text="cfg.use_mock ? 'Chế độ MOCK (USE_MOCK=1)' :
-      (cfg.provider ? ('AI: ' + cfg.provider + ' / ' + cfg.model) : ('AI lỗi: ' + (cfg.provider_error || '...')))"></span>
+    <span class="ml-auto text-xs text-slate-300" x-text="aiLabel()"></span>
   </header>
 
   <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
     <section class="space-y-4">
-      <!-- 1. Sinh test từ yêu cầu -->
+      <!-- 0. Website đích -->
       <div class="bg-white rounded-lg shadow p-4">
-        <h2 class="font-semibold mb-2">1. AI viết test case từ yêu cầu</h2>
+        <h2 class="font-semibold mb-2">0. Website cần test</h2>
+        <div class="flex flex-wrap gap-2 mb-2">
+          <template x-for="p in presets" :key="p.url">
+            <button @click="pick(p)" class="text-xs border rounded px-2 py-1"
+              :class="url === p.url && 'bg-indigo-50 border-indigo-400'" x-text="p.label"></button>
+          </template>
+        </div>
+        <input x-model="url" @change="targetChanged()" class="w-full border rounded p-2 text-sm font-mono"
+          placeholder="https://... (trang web, hoặc link thẳng tới openapi.json)">
+        <p class="text-xs text-slate-500 mt-1" x-text="presetNote"></p>
+      </div>
+
+      <!-- 1. Sinh test -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="font-semibold mb-2">1. AI viết test case</h2>
         <textarea x-model="reqText" rows="5" class="w-full border rounded p-2 text-sm"
-          placeholder="VD: Đặt hàng hợp lệ trả 201, total = tổng giá × số lượng. Email sai định dạng trả 422..."></textarea>
-        <div class="flex gap-2 mt-2">
-          <button @click="generate()" :disabled="busy" class="bg-indigo-600 text-white px-4 py-2 rounded disabled:opacity-50">Sinh test case</button>
-          <button @click="reqText = sample" class="border px-3 py-2 rounded text-sm">Dùng yêu cầu mẫu</button>
+          placeholder="Nhập yêu cầu / user story của website đang chọn..."></textarea>
+        <div class="flex flex-wrap gap-2 mt-2">
+          <button @click="generate()" :disabled="busy || !reqText.trim()" class="bg-indigo-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            title="AI đọc OpenAPI + dữ liệu của website rồi viết test API">Sinh test từ yêu cầu</button>
+          <button x-show="sample" @click="reqText = sample" class="border px-3 py-2 rounded text-sm">Dùng yêu cầu mẫu</button>
           <button @click="autopilot()" :disabled="busy" class="ml-auto bg-fuchsia-600 text-white px-4 py-2 rounded disabled:opacity-50"
-            title="AI tự khám phá Demo Shop và sinh test">🚀 Autopilot</button>
+            title="Không cần yêu cầu: AI tự mở website, khám phá các trang và viết test">🚀 Autopilot</button>
         </div>
         <p x-show="autoSummary" class="text-xs text-slate-600 mt-2" x-text="autoSummary"></p>
       </div>
 
-      <!-- 2. Bug flags -->
-      <div class="bg-white rounded-lg shadow p-4">
+      <!-- 2. Bug flags (chỉ Demo Shop) -->
+      <div class="bg-white rounded-lg shadow p-4" x-show="Object.keys(flags).length">
         <h2 class="font-semibold mb-2">2. Bug flags của Demo Shop</h2>
         <div class="flex flex-wrap gap-3 text-sm">
           <template x-for="(on, name) in flags" :key="name">
@@ -46,22 +60,29 @@
 
       <!-- 3. Danh sách + chạy -->
       <div class="bg-white rounded-lg shadow p-4">
-        <div class="flex items-center mb-2">
+        <div class="flex items-center mb-2 gap-2">
           <h2 class="font-semibold">3. Test case (<span x-text="cases.length"></span>)</h2>
+          <span class="text-xs text-slate-500" x-text="picked.length ? ('đã chọn ' + picked.length) : ''"></span>
+          <button @click="picked = []" x-show="picked.length" class="text-xs text-slate-500 underline">bỏ chọn</button>
           <button @click="run()" :disabled="busy" class="ml-auto bg-emerald-600 text-white px-4 py-2 rounded disabled:opacity-50">▶ Chạy test API + AI phân tích</button>
         </div>
-        <ul class="divide-y max-h-80 overflow-auto text-sm">
+        <ul class="divide-y max-h-96 overflow-auto text-sm">
           <template x-for="c in cases" :key="c.id">
-            <li class="py-1 flex items-center gap-2">
-              <input type="checkbox" :value="c.id" x-model="picked">
-              <span class="font-mono text-xs text-slate-500 whitespace-nowrap" x-text="c.id"></span>
-              <span class="text-xs px-1 rounded" :class="c.type === 'api' ? 'bg-sky-100' : 'bg-amber-100'" x-text="c.type"></span>
-              <span class="truncate" x-text="c.title"></span>
-              <button @click="genData(c.id)" class="ml-auto text-xs text-indigo-600 shrink-0" title="Sinh dữ liệu EP/BVA">+ dữ liệu</button>
+            <li class="py-1">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" :value="c.id" x-model="picked">
+                <span class="font-mono text-xs text-slate-500 whitespace-nowrap" x-text="c.id"></span>
+                <span class="text-xs px-1 rounded" :class="c.type === 'api' ? 'bg-sky-100' : 'bg-amber-100'" x-text="c.type"></span>
+                <button class="truncate text-left hover:underline" @click="open = open === c.id ? null : c.id" x-text="c.title"></button>
+                <button @click="genData(c.id)" class="ml-auto text-xs text-indigo-600 shrink-0" title="Sinh dữ liệu EP/BVA">+ dữ liệu</button>
+              </div>
+              <pre x-show="open === c.id" class="mt-1 bg-slate-50 border rounded p-2 text-[11px] overflow-auto max-h-64"
+                x-text="JSON.stringify({data_sets: c.data_sets, steps: c.steps}, null, 1)"></pre>
             </li>
           </template>
         </ul>
-        <p class="text-xs text-slate-500 mt-1">Không tích ô nào = chạy tất cả test API.</p>
+        <p class="text-xs text-slate-500 mt-1">Bấm tên test để xem các bước. Test vừa sinh được chọn sẵn; không chọn gì = chạy tất cả test API.
+          Test <b>ui</b> cần Runner UI (Playwright) của dashboard để chạy.</p>
       </div>
       <p x-show="busy" class="text-indigo-600 text-sm" x-text="busyMsg"></p>
       <p x-show="error" class="text-red-600 text-sm" x-text="error"></p>
@@ -70,9 +91,11 @@
     <section class="space-y-4">
       <!-- 4. Kết quả -->
       <div class="bg-white rounded-lg shadow p-4" x-show="report">
-        <h2 class="font-semibold mb-2">4. Kết quả:
+        <h2 class="font-semibold mb-1">4. Kết quả:
           <span class="text-emerald-600" x-text="report?.passed + ' pass'"></span> ·
           <span class="text-red-600" x-text="report?.failed + ' fail'"></span></h2>
+        <p class="text-xs text-slate-500 mb-2" x-text="'Chạy trên ' + (report?.target_url || '') +
+          (report?.skipped_ui?.length ? (' · bỏ qua ' + report.skipped_ui.length + ' test UI') : '')"></p>
         <ul class="space-y-2 max-h-[32rem] overflow-auto text-sm">
           <template x-for="(r, i) in report?.results || []" :key="i">
             <li class="border rounded p-2" :class="r.status === 'passed' ? 'border-emerald-200' : 'border-red-300 bg-red-50/40'">
@@ -84,7 +107,7 @@
               </div>
               <template x-if="r.status === 'failed'">
                 <div class="mt-1 text-xs space-y-1">
-                  <div class="font-mono text-red-700" x-text="r.error_msg"></div>
+                  <div class="font-mono text-red-700" x-text="(r.request ? r.request.method + ' ' + r.request.path + ' → ' : '') + r.error_msg"></div>
                   <template x-if="r.ai_analysis">
                     <div>
                       <span class="px-2 py-0.5 rounded text-white text-xs"
@@ -101,36 +124,75 @@
       </div>
 
       <div class="bg-white rounded-lg shadow p-2">
-        <div class="flex items-center px-2 pb-2 text-sm"><b>Demo Shop</b>
-          <button class="ml-auto text-xs text-indigo-600" @click="$refs.shop.src = '/shop'">tải lại</button></div>
-        <iframe x-ref="shop" src="/shop" class="w-full h-[520px] border rounded"></iframe>
+        <div class="flex items-center px-2 pb-2 text-sm gap-3"><b>Website đang test</b>
+          <a class="ml-auto text-xs text-indigo-600" :href="viewUrl()" target="_blank">mở tab mới ↗</a>
+          <button class="text-xs text-indigo-600" @click="reloadFrame()">tải lại</button></div>
+        <iframe x-ref="site" :src="viewUrl()" class="w-full h-[520px] border rounded"></iframe>
+        <p class="text-xs text-slate-500 px-2 pt-1">Một số website chặn hiển thị trong khung; khi đó dùng "mở tab mới".</p>
       </div>
     </section>
   </main>
 
 <script>
-function lab() {
-  return {
-    cfg: {}, flags: {}, cases: [], picked: [], report: null,
-    reqText: '', autoSummary: '', busy: false, busyMsg: '', error: '',
-    verdictLabel: {app_bug: 'Lỗi ứng dụng', test_broken: 'Test hỏng', flaky: 'Không ổn định'},
-    sample: `Khách hàng đặt mua điện thoại tại TVT MOBILE.
+const SHOP_REQ = `Khách hàng đặt mua điện thoại tại TVT MOBILE.
 - Đặt hàng hợp lệ trả 201, tổng tiền (total) = tổng (giá × số lượng) của các sản phẩm.
 - Email không hợp lệ (rỗng, thiếu @, thiếu tên miền) phải bị từ chối với mã 422.
 - Số lượng mỗi sản phẩm từ 1 đến 20; ngoài khoảng này bị từ chối 422.
 - Sản phẩm không tồn tại trả 404. Đặt quá số lượng tồn kho trả 409.
-- Xem lại đơn hàng theo mã đơn.`,
+- Xem lại đơn hàng theo mã đơn.`;
+
+function lab() {
+  return {
+    cfg: {}, flags: {}, cases: [], picked: [], report: null, open: null,
+    url: location.origin + '/shop', sample: SHOP_REQ, presetNote: '', view: '',
+    reqText: '', autoSummary: '', busy: false, busyMsg: '', error: '',
+    verdictLabel: {app_bug: 'Lỗi ứng dụng', test_broken: 'Test hỏng', flaky: 'Không ổn định'},
+    presets: [
+      {label: 'Demo Shop (TVT MOBILE)', url: location.origin + '/shop', sample: SHOP_REQ,
+       note: 'Web mẫu của nhóm: có OpenAPI, bug flags. Sinh test từ yêu cầu hoặc Autopilot.'},
+      {label: 'Swagger Petstore (API công khai)', url: 'https://petstore3.swagger.io/api/v3/openapi.json',
+       view: 'https://petstore3.swagger.io',
+       sample: `Quản lý thú cưng (Petstore).
+- Thêm thú cưng mới (POST /pet) với tên và trạng thái available trả 200, response có id và name đúng như gửi.
+- Lấy thú cưng theo id vừa tạo trả 200.
+- Lấy thú cưng với id không tồn tại (vd. 987654321) trả 404.
+- Tìm thú cưng theo trạng thái available / pending / sold trả 200.`,
+       note: 'API mẫu công khai của Swagger, dữ liệu dùng chung với mọi người nên kết quả có thể thay đổi.'},
+      {label: 'Sauce Demo (UI)', url: 'https://www.saucedemo.com', sample: '',
+       note: 'Web bán hàng mẫu chuyên để luyện test UI (tài khoản standard_user / secret_sauce). Dùng Autopilot.'},
+      {label: 'TodoMVC (UI)', url: 'https://demo.playwright.dev/todomvc/', sample: '',
+       note: 'Ứng dụng todo mẫu của Playwright. Dùng Autopilot để AI sinh test UI.'},
+    ],
 
     async init() {
       this.cfg = await (await fetch('/api/ai/config')).json();
-      await Promise.all([this.loadCases(), this.loadFlags()]);
+      this.pick(this.presets[0]);
+      await this.loadCases();
+    },
+    aiLabel() {
+      const c = this.cfg;
+      if (c.use_mock) return 'Chế độ MOCK (USE_MOCK=1)';
+      if (!c.provider) return 'AI lỗi: ' + (c.provider_error || '...');
+      return 'AI: ' + c.provider + ' / ' + c.model + (c.fallback?.length ? '  ·  dự phòng: ' + c.fallback.join(', ') : '')
+        + (c.last_used && c.last_used !== c.provider + '/' + c.model ? '  ·  vừa dùng: ' + c.last_used : '');
+    },
+    pick(p) {
+      this.url = p.url; this.sample = p.sample || ''; this.presetNote = p.note || ''; this.view = p.view || '';
+      this.reqText = ''; this.targetChanged();
+    },
+    viewUrl() { return this.view || this.url; },
+    reloadFrame() { this.$refs.site.src = this.viewUrl(); },
+    isShop() { return this.url.startsWith(location.origin); },
+    async targetChanged() {
+      if (!this.presets.some(p => p.url === this.url)) { this.view = ''; this.sample = ''; this.presetNote = ''; }
+      this.flags = this.isShop() ? await (await fetch('/api/shop/bugs')).json() : {};
     },
     async loadCases() { this.cases = await (await fetch('/api/test-cases')).json(); },
-    async loadFlags() { this.flags = await (await fetch('/api/shop/bugs')).json(); },
+    async refreshCfg() { this.cfg = await (await fetch('/api/ai/config')).json(); },
     async call(msg, fn) {
       this.busy = true; this.busyMsg = msg; this.error = '';
       try { await fn(); } catch (e) { this.error = e.message; }
-      this.busy = false;
+      this.busy = false; this.refreshCfg();
     },
     async post(url, body) {
       const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
@@ -139,16 +201,20 @@ function lab() {
       return data;
     },
     generate() {
-      return this.call('AI đang viết test case (~30 giây)...', async () => {
-        await this.post('/api/requirements', {text: this.reqText});
-        await this.loadCases();
+      return this.call('AI đang đọc website và viết test case (~30 giây)...', async () => {
+        const r = await this.post('/api/ai/generate', {text: this.reqText, url: this.url});
+        this.autoSummary = (r.openapi_found ? '📄 Đã đọc OpenAPI của website. ' : '⚠️ Không tìm thấy OpenAPI, AI phải đoán đường dẫn API. ')
+          + r.ids.length + ' test case mới (đã chọn sẵn).';
+        this.picked = r.ids; await this.loadCases();
       });
     },
     autopilot() {
-      return this.call('Autopilot đang khám phá Demo Shop và viết test (~1 phút)...', async () => {
-        const r = await this.post('/api/ai/autopilot', {});
-        this.autoSummary = '🚀 ' + r.app_summary + ` (${r.test_cases.length} test case)`;
-        await this.loadCases();
+      return this.call('Autopilot đang mở website, khám phá các trang và viết test (~1–2 phút)...', async () => {
+        const r = await this.post('/api/ai/autopilot', {url: this.url});
+        this.autoSummary = '🚀 ' + (r.app_summary || '') + ` (${r.test_cases.length} test case, đã duyệt ${r.pages.length} trang`
+          + (r.openapi_found ? ', có OpenAPI' : '') + ')'
+          + (r.warnings?.length ? ' · ⚠️ ' + r.warnings.length + ' cảnh báo: ' + r.warnings[0].slice(0, 160) : '');
+        this.picked = r.test_cases.map(t => t.id); await this.loadCases();
       });
     },
     genData(id) {
@@ -159,15 +225,15 @@ function lab() {
     },
     run() {
       return this.call('Đang chạy test và AI phân tích lỗi...', async () => {
-        this.report = await this.post('/api/ai/run', {test_case_ids: this.picked.length ? this.picked : null});
-        this.$refs.shop.src = '/shop';
+        this.report = await this.post('/api/ai/run', {test_case_ids: this.picked.length ? this.picked : null, url: this.url});
+        if (this.isShop()) this.reloadFrame();
       });
     },
     async toggle(name, on) {
       await fetch('/api/shop/bugs/' + name, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: on})});
-      await this.loadFlags(); this.$refs.shop.src = '/shop';
+      await this.targetChanged(); this.reloadFrame();
     },
-    async resetShop() { await this.post('/api/shop/reset'); await this.loadFlags(); this.$refs.shop.src = '/shop'; }
+    async resetShop() { await this.post('/api/shop/reset'); await this.targetChanged(); this.reloadFrame(); }
   }
 }
 </script>

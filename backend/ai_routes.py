@@ -1,8 +1,8 @@
 """API của module AI cho web TestPilot (trang AI Lab: /ai.html).
 
 Các route dùng `def` (không async) vì Playwright/httpx sync chạy trong threadpool.
+Mọi route nhận `url` tuỳ chọn để test website bất kỳ; bỏ trống = Demo Shop (DEMO_SHOP_URL).
 """
-import json
 import os
 
 import httpx
@@ -16,7 +16,7 @@ from backend.models import TestCase
 router = APIRouter(prefix="/api/ai", tags=["AI"])
 
 
-def _target_url() -> str:
+def _default_url() -> str:
     return os.getenv("DEMO_SHOP_URL") or "http://127.0.0.1:8000"
 
 
@@ -42,49 +42,84 @@ def _save_cases(cases: list[TestCase], requirement_text: str) -> int:
 
 @router.get("/config")
 def config():
-    from ai.llm_provider import get_provider
-    info = {"use_mock": ai_client.USE_MOCK, "target_url": _target_url()}
+    from ai.llm_provider import FallbackProvider, get_provider
+    info = {"use_mock": ai_client.USE_MOCK, "target_url": _default_url()}
     if not ai_client.USE_MOCK:
         try:
             p = get_provider()
-            info.update(provider=p.name, model=p.model)
+            chain = p.providers if isinstance(p, FallbackProvider) else [p]
+            info.update(provider=p.name, model=p.model,
+                        fallback=[f"{x.name}/{x.model}" for x in chain[1:]],
+                        last_used=f"{p.last_used.name}/{p.last_used.model}" if isinstance(p, FallbackProvider) else None)
         except Exception as e:
             info.update(provider_error=str(e))
     return info
 
 
+class GenerateIn(BaseModel):
+    text: str
+    url: str | None = None
+
+
+@router.post("/generate")
+def generate(body: GenerateIn):
+    """Yêu cầu + website bất kỳ → AI đọc OpenAPI/dữ liệu của website đó và viết test case."""
+    if not body.text.strip():
+        raise HTTPException(400, "Yêu cầu không được để trống")
+    from ai.autopilot import fetch_samples, find_openapi
+    from ai.test_generator import generate_test_cases
+    url = body.url or _default_url()
+    spec = find_openapi(url)
+    try:
+        cases = generate_test_cases(body.text, openapi_spec=spec,
+                                    sample_data=fetch_samples(url, spec) if spec else None)
+    except Exception as e:
+        raise HTTPException(502, f"AI lỗi: {e}")
+    _save_cases(cases, f"[{url}] {body.text}")
+    return {"url": url, "openapi_found": spec is not None, "ids": [c.id for c in cases]}
+
+
 class RunIn(BaseModel):
     test_case_ids: list[str] | None = None
+    url: str | None = None
     classify: bool = True
     reset_shop: bool = True
 
 
+def _shop_reset_hook(base: str):
+    """Chỉ Demo Shop có /api/shop/bugs: đặt lại kho/đơn hàng nhưng GIỮ các bug flag đang bật."""
+    try:
+        r = httpx.get(f"{base}/api/shop/bugs", timeout=5)
+        flags = r.json() if r.status_code == 200 else None
+    except Exception:
+        flags = None
+    if not isinstance(flags, dict) or not all(isinstance(v, bool) for v in flags.values()):
+        return None
+
+    def before_each():
+        httpx.post(f"{base}/api/shop/reset", timeout=5)
+        for name, on in flags.items():
+            if on:
+                httpx.put(f"{base}/api/shop/bugs/{name}", json={"enabled": True}, timeout=5)
+    return before_each
+
+
 @router.post("/run")
 def run_tests(body: RunIn):
-    """Chạy thử các test case API trên Demo Shop, AI phân loại từng lỗi."""
+    """Chạy thử các test case API trên website đích, AI phân loại từng lỗi."""
+    from ai.autopilot import api_base, find_openapi
     from ai.quick_runner import run_api_test
-    base = _target_url()
-    cases = [c for c in _load_cases(body.test_case_ids) if c.type == "api"]
+    url = body.url or _default_url()
+    spec = find_openapi(url)
+    base = api_base(url, spec)
+    api_paths = list((spec or {}).get("paths", {})) or None
+
+    cases = _load_cases(body.test_case_ids)
+    skipped_ui = [c.id for c in cases if c.type == "ui"]
+    cases = [c for c in cases if c.type == "api"]
     if not cases:
-        raise HTTPException(404, "Không có test case API nào để chạy")
-
-    before_each = None
-    if body.reset_shop:
-        # Mỗi lần chạy đặt lại kho/đơn hàng nhưng GIỮ các bug flag đang bật
-        try:
-            flags = httpx.get(f"{base}/api/shop/bugs", timeout=5).json()
-        except Exception:
-            flags = None
-        if isinstance(flags, dict):
-            def before_each():
-                httpx.post(f"{base}/api/shop/reset", timeout=5)
-                for name, on in flags.items():
-                    if on:
-                        httpx.put(f"{base}/api/shop/bugs/{name}", json={"enabled": True}, timeout=5)
-
-    from ai.autopilot import find_openapi
-    spec = find_openapi(base) or {}
-    api_paths = list(spec.get("paths", {})) or None
+        raise HTTPException(404, "Không có test case API nào để chạy (test UI cần Runner UI)")
+    before_each = _shop_reset_hook(base) if body.reset_shop else None
 
     out = []
     for tc in cases:
@@ -95,20 +130,25 @@ def run_tests(body: RunIn):
             out.append(item)
     passed = sum(r["status"] == "passed" for r in out)
     return {"target_url": base, "total": len(out), "passed": passed, "failed": len(out) - passed,
-            "results": out}
+            "skipped_ui": skipped_ui, "results": out}
 
 
 class AutopilotIn(BaseModel):
     url: str | None = None
     save: bool = True
+    include_api: bool = True
 
 
 @router.post("/autopilot")
 def autopilot(body: AutopilotIn):
     """Dán URL → AI tự khám phá trang + OpenAPI và sinh test case."""
-    url = body.url or _target_url().rstrip("/") + "/shop"
+    url = body.url or _default_url().rstrip("/") + "/shop"
     try:
-        r = ai_client.autopilot(url)
+        if ai_client.USE_MOCK:
+            r = ai_client.autopilot(url)
+        else:
+            from ai.autopilot import autopilot as real
+            r = real(url, include_api=body.include_api)
     except Exception as e:
         raise HTTPException(502, f"Autopilot lỗi: {e}")
     if body.save and r["test_cases"]:
@@ -145,7 +185,7 @@ def heal(body: HealIn):
     dom = body.dom
     if not dom:
         from playwright.sync_api import sync_playwright
-        url = body.url or _target_url().rstrip("/") + "/shop"
+        url = body.url or _default_url().rstrip("/") + "/shop"
         with sync_playwright() as pw:
             b = pw.chromium.launch()
             page = b.new_page()

@@ -245,3 +245,14 @@ def test_fallback_provider_switches_on_error():
     second.name = "backup"
     fb = FallbackProvider([first, second])
     assert fb.complete_json("s", "u") == {"ok": True} and fb.last_used is second
+
+
+def test_autopilot_repairs_invalid_cases(monkeypatch):
+    monkeypatch.setattr("ai.autopilot.find_openapi", lambda url: None)
+    bad = {"app_summary": "Shop", "test_cases": [{"title": "Thiếu target", "type": "ui",
+                                                  "steps": [{"action": "click"}]}]}
+    good = {"test_cases": [{"title": "Đủ", "type": "ui", "steps": [
+        {"action": "goto", "url": "/"}, {"action": "click", "target": {"testid": "add-to-cart-1"}}]}]}
+    r = autopilot("http://shop", provider=FakeProvider(bad, good),
+                  pages=[{"path": "/", "title": "SP", "html": SHOP_V1}])
+    assert len(r["test_cases"]) == 1 and r["app_summary"] == "Shop" and r["warnings"] == []

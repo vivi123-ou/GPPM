@@ -234,6 +234,30 @@ Góc phải trên của AI Lab hiển thị provider đang dùng (vd. `AI: gemin
 
 Mỗi lần chạy, runner tự reset tồn kho/đơn hàng của shop nhưng giữ nguyên các bug flag đang bật.
 
+### AI đang dùng model nào?
+
+- **Provider chính** là `LLM_PROVIDER` trong `.env` (mặc định `gemini` → `gemini-3.5-flash`).
+- **Dự phòng** theo thứ tự `LLM_FALLBACK` (mặc định `groq` → `openai/gpt-oss-120b`, rồi `openai` → `gpt-5-mini`): khi provider chính lỗi hoặc hết lượt (429), AI tự chuyển sang cái tiếp theo. Provider nào chưa có khoá thì bỏ qua.
+- **Ollama** chỉ dùng khi đặt `LLM_PROVIDER=ollama`.
+- Góc phải trên của AI Lab hiển thị provider chính, danh sách dự phòng và provider **vừa dùng** thực tế.
+
+### Hướng dẫn 2b: Test website khác
+
+Ô **0. Website cần test** trên AI Lab nhận URL bất kỳ, kèm 4 website mẫu:
+
+| Website | Loại | Cách thử |
+| --- | --- | --- |
+| Demo Shop (TVT MOBILE) | API + UI, có bug flags | Sinh test từ yêu cầu mẫu hoặc Autopilot, rồi chạy |
+| Swagger Petstore (`https://petstore3.swagger.io/api/v3/openapi.json`) | API công khai | **Dùng yêu cầu mẫu** → **Sinh test từ yêu cầu** → **Chạy** |
+| Sauce Demo (`https://www.saucedemo.com`) | Chỉ giao diện | **🚀 Autopilot**: AI mở trang, đọc các ô nhập/nút và viết test UI |
+| TodoMVC (`https://demo.playwright.dev/todomvc/`) | Chỉ giao diện | **🚀 Autopilot** |
+
+- Website có OpenAPI (AI tự dò `/openapi.json`, `/api/v3/openapi.json`, `/swagger.json`..., hoặc dán thẳng link file `.json`): AI dùng đúng đường dẫn API và dữ liệu thật, test API **chạy được ngay** và được AI phân loại lỗi.
+- Website chỉ có giao diện: Autopilot sinh test **UI** (bấm tên test để xem các bước). Chạy test UI cần Runner UI (Playwright) của dashboard, đang được phát triển.
+- Autopilot chỉ duyệt các trang truy cập được không cần đăng nhập.
+
+Kết quả thử thật: Petstore 4 test (3 pass, 1 fail: tạo thú cưng hợp lệ nhưng server trả 500, AI phân loại **Lỗi ứng dụng**, kiểm tra tay xác nhận đúng); Sauce Demo: Autopilot sinh 7 test UI cho luồng đăng nhập.
+
 ### Hướng dẫn 3: Chạy test case từ file (dòng lệnh)
 
 Web phải đang chạy (Hướng dẫn 1) để có Demo Shop.
@@ -268,7 +292,8 @@ Chạy trên Demo Shop với Gemini (`gemini-3.5-flash`), yêu cầu đặt hàn
 | Method | Endpoint | Mô tả |
 | --- | --- | --- |
 | `GET` | `/api/ai/config` | Provider/model đang dùng |
-| `POST` | `/api/ai/run` | Chạy test API (`{"test_case_ids": [...]}` hoặc tất cả) + AI phân loại lỗi |
+| `POST` | `/api/ai/generate` | `{"text", "url"}` → AI đọc OpenAPI/dữ liệu của website và viết test |
+| `POST` | `/api/ai/run` | `{"test_case_ids": [...], "url"}` → chạy test API + AI phân loại lỗi |
 | `POST` | `/api/ai/autopilot` | `{"url": "..."}` → AI khám phá và sinh test (mặc định lưu vào danh sách) |
 | `POST` | `/api/ai/test-data/{id}?save=true` | Sinh dữ liệu EP/BVA cho một test case |
 | `POST` | `/api/ai/heal` | `{"step": {...}, "url": "..."}` → đề xuất locator mới |
