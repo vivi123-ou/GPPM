@@ -256,3 +256,15 @@ def test_autopilot_repairs_invalid_cases(monkeypatch):
     r = autopilot("http://shop", provider=FakeProvider(bad, good),
                   pages=[{"path": "/", "title": "SP", "html": SHOP_V1}])
     assert len(r["test_cases"]) == 1 and r["app_summary"] == "Shop" and r["warnings"] == []
+
+
+def test_export_describe_step_and_workbook():
+    from backend.export import describe_step
+    from backend.models import Step
+    api = Step(method="POST", path="/api/x", body={"a": 1}, expect={"status": 201, "json_contains": {"total": 5}},
+               save={"oid": "order_id"})
+    action, target, data, expected = describe_step(api)
+    assert (action, target) == ("POST", "/api/x") and "HTTP 201" in expected and "oid" in expected
+    ui = Step(action="click", target={"role": "button", "name": "Mua"})
+    assert describe_step(ui)[1] == 'button "Mua"'
+    assert describe_step(Step(action="assert_text", target={"testid": "t"}, expect="1"))[3] == 'hiển thị "1"'

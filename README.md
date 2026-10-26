@@ -43,6 +43,7 @@ backend/
   models.py          # Schema test case dùng chung
   ai_client.py       # Điểm nối backend ↔ AI (USE_MOCK=1: mock, 0: AI thật)
   ai_routes.py       # API /api/ai/* cho trang AI Lab
+  export.py          # Xuất Excel/CSV test case và báo cáo
   runner/            # Runner API, UI và self-healing
   mocks/             # Dữ liệu mock cho AI
 ai/                  # Module AI (xem mục AI Model)
@@ -59,6 +60,7 @@ ShopDemo/            # Demo Shop: API, trang bán hàng và tài nguyên
 frontend/
   index.html         # Dashboard TestPilot
   ai.html            # AI Lab: sinh test, Autopilot, chạy thử + AI phân tích lỗi
+  theme.css, theme.js # Giao diện dùng chung (trắng–tím), thanh điều hướng
 README.md
 requirements.txt
 ```
@@ -258,6 +260,16 @@ Mỗi lần chạy, runner tự reset tồn kho/đơn hàng của shop nhưng gi
 
 Kết quả thử thật: Petstore 4 test (3 pass, 1 fail: tạo thú cưng hợp lệ nhưng server trả 500, AI phân loại **Lỗi ứng dụng**, kiểm tra tay xác nhận đúng); Sauce Demo: Autopilot sinh 7 test UI cho luồng đăng nhập.
 
+### Xuất tài liệu cho dev (Excel / CSV / JSON)
+
+| Ở đâu | Nút | File nhận được |
+| --- | --- | --- |
+| Trang Tổng quan (`/`) | **⬇ Xuất tài liệu** → Excel / CSV / JSON | Test case đang hiển thị (theo ô tìm kiếm và bộ lọc) |
+| AI Lab, mục 3 | **📊 Excel** | Test case đã chọn (hoặc tất cả) |
+| AI Lab, mục 4 | **📊 Xuất báo cáo Excel** / **🧩 JSON** | Báo cáo lần chạy gần nhất |
+
+File Excel test case gồm 4 sheet: **Tổng quan** (số lượng theo loại / ưu tiên, model AI), **Test cases** (mỗi bước một dòng: hành động, đối tượng, dữ liệu, kết quả mong đợi), **Dữ liệu test** (bộ dữ liệu hợp lệ / không hợp lệ, tô màu), **Yêu cầu** (yêu cầu gốc). Báo cáo kết quả gồm tỉ lệ pass, số lỗi theo nhãn AI và từng lượt chạy kèm giải thích, đề xuất sửa. CSV có BOM để Excel mở đúng tiếng Việt.
+
 ### Hướng dẫn 3: Chạy test case từ file (dòng lệnh)
 
 Web phải đang chạy (Hướng dẫn 1) để có Demo Shop.
@@ -298,6 +310,9 @@ Chạy trên Demo Shop với Gemini (`gemini-3.5-flash`), yêu cầu đặt hàn
 | `POST` | `/api/ai/test-data/{id}?save=true` | Sinh dữ liệu EP/BVA cho một test case |
 | `POST` | `/api/ai/heal` | `{"step": {...}, "url": "..."}` → đề xuất locator mới |
 | `POST` | `/api/ai/impact` | `{"old_text", "new_text"}` → test bị ảnh hưởng |
+| `GET` | `/api/export/test-cases.xlsx?ids=...` | Tài liệu test case (Excel) |
+| `GET` | `/api/export/test-cases.csv?ids=...` | Test case dạng CSV |
+| `POST` | `/api/export/report.xlsx` | Gửi JSON kết quả của `/api/ai/run` → báo cáo Excel |
 
 Quy ước cho runner (thay biến `{{x}}`, `save`, `json_contains`, data set `accept`/`reject`) xem [docs/AI.md](docs/AI.md).
 
