@@ -1,5 +1,6 @@
 let products = [];
 let cart = {};
+try { cart = JSON.parse(sessionStorage.getItem('tvt-shop-cart') || '{}'); } catch { cart = {}; }
 const money = value => new Intl.NumberFormat('vi-VN').format(value) + ' ₫';
 
 async function load() {
@@ -8,6 +9,37 @@ async function load() {
   renderCart();
   const flags = await (await fetch('/api/shop/bugs')).json();
   if (flags.ui_v2) document.body.classList.add('v2');
+  await loadAccount();
+}
+
+async function loadAccount() {
+  const actions = document.querySelector('#account-actions');
+  if (!actions) return;
+  const response = await fetch('/api/shop/auth/me');
+  actions.replaceChildren();
+  if (!response.ok) {
+    actions.innerHTML = '<a href="/shop/login">Đăng nhập</a><a class="account-register" href="/shop/register">Đăng ký</a>';
+    return;
+  }
+  const user = await response.json();
+  const greeting = document.createElement('span');
+  greeting.className = 'account-greeting';
+  greeting.textContent = `Xin chào, ${user.name}`;
+  const logout = document.createElement('button');
+  logout.className = 'account-logout';
+  logout.type = 'button';
+  logout.textContent = 'Đăng xuất';
+  logout.addEventListener('click', logoutShop);
+  actions.append(greeting, logout);
+  const name = document.querySelector('#customer');
+  const email = document.querySelector('#email');
+  if (name && !name.value) name.value = user.name;
+  if (email && !email.value) email.value = user.email;
+}
+
+async function logoutShop() {
+  await fetch('/api/shop/auth/logout', { method: 'POST' });
+  window.location.assign('/shop');
 }
 
 function renderProducts() {
@@ -32,6 +64,7 @@ function renderProducts() {
 
 function add(id) {
   cart[id] = (cart[id] || 0) + 1;
+  sessionStorage.setItem('tvt-shop-cart', JSON.stringify(cart));
   renderCart();
 }
 
@@ -71,9 +104,15 @@ function getCheckoutData() {
   };
 }
 
-function reviewOrder() {
+async function reviewOrder() {
   if (!cartEntries().length) {
     document.querySelector('#message').textContent = 'Hãy chọn sản phẩm trước khi đặt hàng.';
+    return;
+  }
+  const authResponse = await fetch('/api/shop/auth/me');
+  if (!authResponse.ok) {
+    sessionStorage.setItem('tvt-shop-cart', JSON.stringify(cart));
+    window.location.assign('/shop/login?next=%2Fshop%23cart');
     return;
   }
   for (const id of ['customer', 'phone', 'email', 'city', 'address']) {
@@ -129,6 +168,7 @@ async function confirmOrder() {
       : (result.detail || 'Đặt hàng thất bại. Hãy kiểm tra lại thông tin.');
     if (response.ok) {
       cart = {};
+      sessionStorage.removeItem('tvt-shop-cart');
       await load();
     }
   } catch (error) {

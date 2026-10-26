@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Đăng ký · TVT MOBILE</title>
+    <link rel="stylesheet" href="/shop-assets/css/shop.css?v=auth-motion-1">
+</head>
+<body class="auth-page">
+    <header>
+        <a class="brand" href="/shop">TVT <em>MOBILE</em></a>
+        <nav class="nav"><a href="/shop#catalog">Điện thoại</a><a href="/shop#offers">Ưu đãi</a><a href="/shop/about">Về chúng tôi</a></nav>
+        <a class="cart auth-home" href="/shop">Về cửa hàng</a>
+    </header>
+    <main class="auth-shell register-shell">
+        <div class="auth-art"><span class="eyebrow">TVT MOBILE</span><h1>Tạo tài khoản<br>của bạn.</h1><p>Đăng ký nhanh chóng để đặt hàng và theo dõi trải nghiệm mua sắm.</p><div class="auth-art-orb" aria-hidden="true"><span>✦</span></div></div>
+        <section class="auth-card">
+            <div class="eyebrow">BẮT ĐẦU NGAY</div>
+            <h2>Đăng ký</h2>
+            <p class="auth-subtitle">Điền thông tin để tạo tài khoản mới.</p>
+            <form id="register-form">
+                <label>Họ và tên<input name="name" autocomplete="name" required maxlength="100" placeholder="Tên của bạn" data-testid="register-name"></label>
+                <label>Email<input name="email" type="email" autocomplete="email" required maxlength="254" placeholder="ban@example.com" data-testid="register-email"></label>
+                <label>Mật khẩu
+                    <span class="password-input">
+                        <input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Ít nhất 8 ký tự" data-testid="register-password">
+                        <button class="password-toggle" type="button" aria-label="Hiện mật khẩu" aria-pressed="false" data-testid="toggle-register-password"></button>
+                    </span>
+                </label>
+                <label>Nhập lại mật khẩu
+                    <span class="password-input">
+                        <input name="password_confirmation" type="password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Nhập lại mật khẩu" data-testid="register-password-confirmation">
+                        <button class="password-toggle" type="button" aria-label="Hiện mật khẩu" aria-pressed="false" data-testid="toggle-register-password-confirmation"></button>
+                    </span>
+                </label>
+                <p class="auth-error" id="auth-error" aria-live="polite"></p>
+                <button class="add auth-submit" type="submit">Tạo tài khoản</button>
+            </form>
+            <p class="auth-switch">Đã có tài khoản? <a href="/shop/login">Đăng nhập</a></p>
+        </section>
+    </main>
+    <footer>TVT MOBILE · Demo Shop cho TestPilot · Tài khoản dùng cho bản demo</footer>
+    <script src="/shop-assets/js/auth.js?v=eye-toggle-1" defer></script>
+</body>
+</html>
