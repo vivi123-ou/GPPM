@@ -42,7 +42,13 @@ Rules:
 - When the requirement states a business rule on a value (totals, prices, stock, messages),
   assert it with expect.json_contains. Compute expected numbers from the real data; if the
   value depends on the data set, put it in data_sets values (e.g. "expected_total") and
-  assert "{{expected_total}}".
+  assert "{{expected_total}}". Double-check every multiplication and sum; if you are not sure
+  of an exact value, do not assert it.
+- Values must be literal JSON data, never code: do NOT write "a".repeat(300), "x" * 101 or
+  string concatenation. For long strings use the token "<len:N>" (exactly N characters) or
+  "<len:N:@example.com>" (N characters ending with that suffix).
+- Only expect a rejection (4xx) when the requirement or the OpenAPI constraints (minLength,
+  maxLength, minimum, maximum, required, format) actually define that rule.
 - All data_sets inside ONE test case must share the same "expected" outcome; split valid
   and invalid behaviours into separate test cases (e.g. one "accept" case expecting 200,
   one "reject" case expecting 400).
@@ -67,6 +73,34 @@ TEST_CASES_USER = """Requirement:
 \"\"\"
 {context}
 Generate between {min_cases} and {max_cases} test cases. Titles in Vietnamese."""
+
+PLAN_SYSTEM = """You are a QA lead writing a test plan. List distinct, non-overlapping test scenarios
+that together give thorough coverage of the requirement:
+- happy paths and main business flows
+- every validation rule: missing field, empty, wrong type, wrong format
+- boundary values for every limit (on, just below, just above)
+- business rules on computed values (totals, stock, status changes)
+- not-found / conflict / state cases, and a few security-style inputs (very long strings, injection-like text)
+Do not repeat a scenario with trivially different data; vary the behaviour under test.
+Respond with JSON: {"scenarios": [{"title": "Vietnamese title", "type": "api|ui",
+"priority": "high|medium|low", "technique": "happy|negative|boundary|business|state|security",
+"notes": "short English hint: endpoint/data/expected result"}]}"""
+
+PLAN_USER = """Requirement:
+\"\"\"
+{requirement}
+\"\"\"
+{context}
+List exactly {count} scenarios.{avoid}"""
+
+BATCH_USER = """Requirement:
+\"\"\"
+{requirement}
+\"\"\"
+{context}
+Write exactly {count} test cases, one for each scenario below, in the same order.
+Keep each title as given.
+{scenarios}"""
 
 REPAIR_USER = """Some of your test cases do not match the schema. Errors:
 {errors}
@@ -139,6 +173,13 @@ CLASSIFY_SYSTEM = """You are a test-failure triage expert. Classify a failed tes
   changed, wrong path, wrong expectation, bad test data).
 - "flaky": intermittent / environmental (timeouts, network errors, race conditions,
   passes on retry).
+Before blaming the application, verify the test itself:
+- Recompute any expected number (totals, stock) from the real system data provided; if the
+  test's expected value is wrong, the verdict is "test_broken".
+- If the test expects a rejection for a rule that neither the requirement nor the API
+  constraints define, the verdict is "test_broken" (unstated assumption) and say so.
+- If the test data is malformed (code instead of data, wrong field names, invented IDs),
+  the verdict is "test_broken".
 Explain in Vietnamese, concisely, citing the evidence (expected vs actual).
 Respond with JSON: {"verdict": "app_bug|test_broken|flaky", "confidence": 0.0-1.0,
 "explanation": "...", "suggested_fix": "..."}"""
@@ -149,7 +190,9 @@ CLASSIFY_USER = """Test case:
 Execution result:
 {result}
 
-Heuristic pre-analysis (may be wrong): {hint}"""
+Heuristic pre-analysis (may be wrong): {hint}
+
+{context}"""
 
 HEAL_SYSTEM = """You are a self-healing locator engine for UI tests. A test step failed because
 its locator no longer matches. Given the old target and the candidate elements of the NEW

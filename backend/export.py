@@ -28,7 +28,7 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 VIOLET, VIOLET_LIGHT = "6D28D9", "F3EEFF"
 GREEN_LIGHT, RED_LIGHT, AMBER_LIGHT = "DCFCE7", "FEE2E2", "FEF3C7"
 THIN = Side(style="thin", color="DDD6FE")
-VERDICT_VI = {"app_bug": "Lỗi ứng dụng", "test_broken": "Test hỏng", "flaky": "Không ổn định"}
+VERDICT_VI = {"app_bug": "Lỗi ứng dụng", "test_broken": "Lỗi kịch bản", "flaky": "Không ổn định"}
 PRIORITY_VI = {"high": "Cao", "medium": "Trung bình", "low": "Thấp"}
 
 
@@ -130,7 +130,7 @@ def export_test_cases_xlsx(ids: str | None = None):
 
     ws = wb.active
     ws.title = "Tổng quan"
-    _title(ws, "TestPilot – Tài liệu test case", f"Xuất lúc {now} · Sinh bởi AI: {_model_name()}")
+    _title(ws, "TestPilot – Tài liệu kịch bản kiểm thử", f"Xuất lúc {now} · Mô hình AI: {_model_name()}")
     types = Counter(tc.type for tc, _ in cases)
     prio = Counter(tc.priority for tc, _ in cases)
     summary = [["Tổng số test case", len(cases)],
@@ -200,10 +200,10 @@ def export_report_xlsx(report: dict):
     _title(ws, "TestPilot – Báo cáo kết quả kiểm thử",
            f"Xuất lúc {datetime.now():%d/%m/%Y %H:%M} · Hệ thống: {report.get('target_url', '-')} · AI: {_model_name()}")
     _header(ws, 4, ["Chỉ số", "Giá trị"])
-    _rows(ws, 5, [["Tổng lượt chạy", total], ["Pass", passed], ["Fail", total - passed],
-                  ["Tỉ lệ pass", f"{(passed / total * 100 if total else 0):.0f}%"],
+    _rows(ws, 5, [["Tổng lượt chạy", total], ["Đạt", passed], ["Không đạt", total - passed],
+                  ["Tỉ lệ đạt", f"{(passed / total * 100 if total else 0):.0f}%"],
                   ["Lỗi ứng dụng (app_bug)", verdicts.get("app_bug", 0)],
-                  ["Test hỏng (test_broken)", verdicts.get("test_broken", 0)],
+                  ["Lỗi kịch bản (test_broken)", verdicts.get("test_broken", 0)],
                   ["Không ổn định (flaky)", verdicts.get("flaky", 0)]], [32, 40])
     ws.freeze_panes = None
 
@@ -216,7 +216,7 @@ def export_report_xlsx(report: dict):
         a = r.get("ai_analysis") or {}
         req = r.get("request") or {}
         ok = r.get("status") == "passed"
-        rows.append([r.get("test_case_id"), r.get("title"), r.get("data_set"), "PASS" if ok else "FAIL",
+        rows.append([r.get("test_case_id"), r.get("title"), r.get("data_set"), "ĐẠT" if ok else "KHÔNG ĐẠT",
                      r.get("duration_ms"), f"{req.get('method', '')} {req.get('path', '')}".strip(),
                      r.get("expected_status"), r.get("actual_status"), r.get("error_msg") or "",
                      VERDICT_VI.get(a.get("verdict"), a.get("verdict") or ""),

@@ -268,3 +268,57 @@ def test_export_describe_step_and_workbook():
     ui = Step(action="click", target={"role": "button", "name": "Mua"})
     assert describe_step(ui)[1] == 'button "Mua"'
     assert describe_step(Step(action="assert_text", target={"testid": "t"}, expect="1"))[3] == 'hiển thị "1"'
+
+
+def test_generate_many_plans_then_batches(monkeypatch):
+    monkeypatch.setattr(test_generator, "BATCH_SIZE", 3)
+    plan = {"scenarios": [{"title": f"Kịch bản {i}", "type": "api"} for i in range(1, 8)]}
+
+    def batch(n0, n):
+        return {"test_cases": [{"title": f"Kịch bản {i}", "type": "api",
+                                "steps": [{"method": "GET", "path": "/x", "expect": {"status": 200}}]}
+                               for i in range(n0, n0 + n)]}
+
+    monkeypatch.setenv("AI_PARALLEL", "1")      # chạy tuần tự để FakeProvider trả lời đúng thứ tự
+    fake = FakeProvider(plan, batch(1, 3), batch(4, 3), batch(7, 1))
+    cases = test_generator.generate_test_cases("yêu cầu", count=7, provider=fake)
+    assert [c.title for c in cases] == [f"Kịch bản {i}" for i in range(1, 8)]
+    assert cases[-1].id.endswith("-07") and len({c.id for c in cases}) == 7
+
+
+def test_fallback_cools_down_rate_limited_provider():
+    from ai.llm_provider import FallbackProvider, RateLimitError
+    first = FakeProvider(RateLimitError("429 hết hạn mức"), {"never": True})
+    second = FakeProvider({"ok": 1}, {"ok": 2})
+    second.name = "backup"
+    fb = FallbackProvider([first, second])
+    assert fb.complete_json("s", "u") == {"ok": 1}
+    assert fb.complete_json("s", "u") == {"ok": 2}      # lần 2 bỏ qua provider đang nghỉ
+    assert len(first.calls) == 1
+
+
+def test_code_in_data_is_rejected_and_tokens_resolved():
+    bad = {"test_cases": [{"title": "Tên quá dài", "type": "api",
+                           "steps": [{"method": "POST", "path": "/x", "body": {"name": "a\".repeat(101)"},
+                                      "expect": {"status": 422}}]}]}
+    good = {"test_cases": [{"title": "Tên quá dài", "type": "api",
+                            "steps": [{"method": "POST", "path": "/x", "body": {"name": "<len:101>",
+                                       "email": "<len:255:@demo.com>"}, "expect": {"status": 422}}]}]}
+    fake = FakeProvider(bad, good)
+    cases = test_generator.generate_test_cases("x", provider=fake)
+    body = cases[0].steps[0].body
+    assert len(body["name"]) == 101 and len(body["email"]) == 255 and body["email"].endswith("@demo.com")
+    assert "repeat" in fake.calls[1][1]        # lỗi được gửi lại cho AI sửa
+
+
+def test_classifier_flags_code_in_data():
+    tc = {"type": "api", "steps": [{"method": "POST", "path": "/x", "body": {"a": "b\".repeat(301)}"}}]}
+    r = classifier.heuristic(tc, {"error_msg": "expected status 422, got 201", "actual_status": 201})
+    assert r["verdict"] == "test_broken"
+
+
+def test_backend_app_imports_and_routes_exist():
+    # Bắt lỗi cú pháp / import trong backend (route AI, export) mà các test khác không chạm tới
+    from backend.main import app
+    paths = set(app.openapi()["paths"])
+    assert {"/api/ai/run", "/api/ai/generate", "/api/ai/inspect", "/api/export/test-cases.xlsx"} <= paths

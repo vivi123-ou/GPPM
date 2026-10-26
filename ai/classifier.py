@@ -8,12 +8,15 @@ kèm giải thích. Nếu LLM không gọi được thì trả về kết quả 
 from __future__ import annotations
 
 import json
+import re
 
 from ai import prompts
 from ai.llm_provider import LLMProvider, get_provider
 from backend.models import TestCase
 
 VERDICTS = ("app_bug", "test_broken", "flaky")
+# Dấu hiệu LLM viết code thay cho dữ liệu: "a".repeat(300), "x" * 101, new Array(…)
+CODE_IN_DATA = re.compile(r"\.repeat\(|new Array\(|\\\"\s*\*\s*\d+|\"\s*\+\s*\"")
 
 _LOCATOR_HINTS = ("waiting for locator", "waiting for selector", "strict mode violation",
                   "element is not attached", "no element", "not found", "resolved to 0 elements",
@@ -38,6 +41,11 @@ def heuristic(test_case: TestCase | dict, result: dict, api_paths: list[str] | N
     history = result.get("history") or []
     if len(set(history[-5:])) > 1 and "passed" in history and "failed" in history:
         return _v("flaky", 0.6, "Lịch sử chạy gần đây lúc pass lúc fail.")
+    tc_text = (test_case.model_dump_json() if isinstance(test_case, TestCase)
+               else json.dumps(test_case, ensure_ascii=False, default=str))
+    if CODE_IN_DATA.search(tc_text):
+        return _v("test_broken", 0.85, "Dữ liệu kiểm thử chứa biểu thức code (vd. .repeat()) thay vì giá trị thật, "
+                                       "nên request gửi đi không đúng như kịch bản mô tả.")
     if "để lưu vào" in err:
         return _v("test_broken", 0.75, "Test đọc sai trường trong response (bước 'save'); "
                                        "API vẫn trả kết quả nhưng tên trường khác với test giả định.")
@@ -51,10 +59,12 @@ def heuristic(test_case: TestCase | dict, result: dict, api_paths: list[str] | N
 
 
 def classify_failure(test_case: TestCase | dict, result: dict, requirement_text: str = "",
-                     provider: LLMProvider | None = None, api_paths: list[str] | None = None) -> dict:
+                     provider: LLMProvider | None = None, api_paths: list[str] | None = None,
+                     context: str = "") -> dict:
     """result: dict tuỳ ý từ Runner, nên có error_msg, step lỗi, expected/actual,
     response body, history... Càng nhiều dữ kiện AI giải thích càng đúng.
-    api_paths: các path có thật (từ OpenAPI) để nhận ra test gọi sai API."""
+    api_paths: các path có thật (từ OpenAPI) để nhận ra test gọi sai API.
+    context: dữ liệu thật của hệ thống + ràng buộc OpenAPI để AI kiểm lại kỳ vọng của test."""
     hint = heuristic(test_case, result, api_paths)
     tc_json = (test_case.model_dump_json(exclude_none=True) if isinstance(test_case, TestCase)
                else json.dumps(test_case, ensure_ascii=False, default=str))
@@ -65,7 +75,8 @@ def classify_failure(test_case: TestCase | dict, result: dict, requirement_text:
     try:
         llm = provider or get_provider()
         data = llm.complete_json(prompts.CLASSIFY_SYSTEM, prompts.CLASSIFY_USER.format(
-            test_case=tc_json[:6000], result=_compact(result), hint=json.dumps(hint, ensure_ascii=False)))
+            test_case=tc_json[:6000], result=_compact(result), hint=json.dumps(hint, ensure_ascii=False),
+            context=("System context (real data and API constraints):\n" + context[:5000]) if context else ""))
         if not isinstance(data, dict):
             raise ValueError("không phải object")
         verdict = str(data.get("verdict", "")).lower().strip()

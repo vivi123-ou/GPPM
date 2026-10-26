@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TestPilot AI Lab</title>
+  <title>Kiểm thử website — TestPilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/theme.css">
   <script src="/theme.js"></script>
@@ -14,207 +14,298 @@
 <body x-data="lab()" x-init="init()">
   <div id="tp-nav"></div>
 
-  <header class="tp-hero">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-6">
-      <span class="tp-chip" style="cursor:default">🧪 AI Lab</span>
-      <h1 class="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight">Dán URL — <span class="tp-gradient-text">AI tự test website</span></h1>
-      <p class="mt-2 text-slate-500 max-w-3xl">Chọn website, để AI viết test từ yêu cầu hoặc tự khám phá bằng Autopilot, chạy test
-        và xem AI giải thích vì sao fail: lỗi ứng dụng, test hỏng hay không ổn định.</p>
+  <header class="grid-bg border-b hair">
+    <div class="wrap pt-12 pb-10">
+      <div class="cmt reveal">// kiểm thử website</div>
+      <h1 class="h1 mt-5 reveal d1" style="font-size: clamp(48px, 7vw, 104px)">Dán địa chỉ.<br>Nhận báo cáo<span class="caret"></span></h1>
+      <p class="lead mt-6 max-w-2xl reveal d2">Nhập địa chỉ website hoặc tài liệu OpenAPI. TestPilot phân tích hệ thống,
+        tạo kịch bản kiểm thử, thực thi và phân loại nguyên nhân khi kết quả không đạt.</p>
     </div>
+    <!-- Tiến trình -->
+    <ol class="wrap grid grid-cols-2 md:grid-cols-4 border-t hair">
+      <template x-for="(s, i) in stepper()" :key="i">
+        <li class="py-4 pr-4" :class="i && 'md:border-l hair md:pl-5'">
+          <div class="flex items-center gap-2 mono text-[11px]">
+            <span :style="'color:' + (s.done ? 'var(--pass)' : s.current ? 'var(--accent)' : 'var(--muted)')"
+              x-text="s.done ? '[✓]' : s.current ? '[›]' : '[ ]'"></span>
+            <span style="color: var(--muted)" x-text="TP.pad(i + 1)"></span>
+          </div>
+          <div class="mt-2 font-semibold tracking-tight" :style="!s.done && !s.current && 'color: var(--muted)'" x-text="s.title"></div>
+          <div class="small truncate" x-text="s.hint"></div>
+        </li>
+      </template>
+    </ol>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 pb-16 grid grid-cols-1 xl:grid-cols-2 gap-6">
-    <section class="space-y-5">
-      <!-- 1. Website đích -->
-      <div class="tp-card p-5">
-        <h2 class="tp-card-title"><span class="tp-step-no">1</span> Website cần test</h2>
-        <div class="flex flex-wrap gap-2 mt-4">
-          <template x-for="p in presets" :key="p.url">
-            <button @click="pick(p)" class="tp-chip" :class="url === p.url && 'active'" x-text="p.icon + ' ' + p.label"></button>
-          </template>
-        </div>
-        <input x-model="url" @change="targetChanged()" class="tp-input mono mt-3"
-          placeholder="https://… (trang web, hoặc link thẳng tới openapi.json)">
-        <p class="text-xs text-slate-500 mt-2" x-text="presetNote"></p>
-      </div>
+  <main class="wrap py-12 grid grid-cols-1 xl:grid-cols-12 gap-12">
+    <section class="xl:col-span-7 space-y-14">
 
-      <!-- 2. Sinh test -->
-      <div class="tp-card p-5">
-        <h2 class="tp-card-title"><span class="tp-step-no">2</span> AI viết test case</h2>
-        <textarea x-model="reqText" rows="5" class="tp-input mt-4"
-          placeholder="Nhập yêu cầu / user story của website đang chọn… (hoặc bấm Autopilot, không cần yêu cầu)"></textarea>
-        <div class="flex flex-wrap gap-2 mt-3">
-          <button @click="generate()" :disabled="busy || !reqText.trim()" class="tp-btn tp-btn-primary"
-            title="AI đọc OpenAPI + dữ liệu của website rồi viết test">✨ Sinh test từ yêu cầu</button>
-          <button x-show="sample" @click="reqText = sample" class="tp-btn tp-btn-ghost">Dùng yêu cầu mẫu</button>
-          <button @click="autopilot()" :disabled="busy" class="tp-btn tp-btn-ghost ml-auto"
-            title="AI tự mở website, khám phá các trang và viết test">🚀 Autopilot</button>
+      <!-- 01 Hệ thống mục tiêu -->
+      <div>
+        <div class="cmt">// 01 — <b>hệ thống mục tiêu</b></div>
+        <form class="flex mt-4" @submit.prevent="inspect()">
+          <span class="mono text-sm grid place-items-center px-3 border border-r-0" style="border-color: var(--line-2); color: var(--muted); background: var(--paper)">URL</span>
+          <input x-model="url" class="field mono" placeholder="https://example.com · https://example.com/openapi.json" @input="info = null">
+          <button class="btn" :disabled="busy || !url.trim()">Kiểm tra</button>
+        </form>
+        <div class="flex flex-wrap items-baseline gap-y-1 text-sm mt-3">
+          <span class="label mr-3">Hệ thống mẫu</span>
+          <span class="slash-list">
+            <template x-for="p in presets" :key="p.url">
+              <button type="button" class="opt" :class="url === p.url && 'on'" @click="usePreset(p)" x-text="p.label"></button>
+            </template>
+          </span>
         </div>
-        <div x-show="autoSummary" x-cloak class="mt-3 text-sm rounded-xl p-3 bg-violet-50 text-violet-900" x-text="autoSummary"></div>
-      </div>
 
-      <!-- Bug flags -->
-      <div class="tp-card p-5" x-show="Object.keys(flags).length" x-cloak>
-        <h2 class="tp-card-title">🐞 Bug flags của Demo Shop</h2>
-        <p class="text-xs text-slate-500 mt-1">Bật lỗi cài sẵn để xem AI có bắt được không.</p>
-        <div class="flex flex-wrap gap-2 mt-3">
-          <template x-for="(on, name) in flags" :key="name">
-            <label class="tp-chip cursor-pointer" :style="on ? 'color:#b91c1c;border-color:#fca5a5;background:#fef2f2' : ''">
-              <input type="checkbox" class="accent-red-600" :checked="on" @change="toggle(name, $event.target.checked)">
-              <span x-text="name"></span>
-            </label>
-          </template>
-          <button @click="resetShop()" class="tp-btn tp-btn-ghost tp-btn-sm">↺ Reset shop</button>
-        </div>
-      </div>
-
-      <!-- 3. Danh sách + chạy -->
-      <div class="tp-card p-5">
-        <div class="flex flex-wrap items-center gap-2">
-          <h2 class="tp-card-title"><span class="tp-step-no">3</span> Test case <span class="tp-badge tp-badge-api" x-text="cases.length"></span></h2>
-          <span class="text-xs text-slate-500" x-text="picked.length ? ('đã chọn ' + picked.length) : 'chưa chọn = chạy tất cả test API'"></span>
-          <button @click="picked = []" x-show="picked.length" class="text-xs text-violet-600 underline">bỏ chọn</button>
-          <div class="ml-auto flex gap-2">
-            <button @click="exportCases()" class="tp-btn tp-btn-ghost tp-btn-sm" title="Xuất các test đã chọn (hoặc tất cả) ra Excel">📊 Excel</button>
-            <button @click="run()" :disabled="busy" class="tp-btn tp-btn-green">▶ Chạy + AI phân tích</button>
+        <div x-show="info" x-cloak class="term mt-5">
+          <div class="term-body text-[12.5px]">
+            <div><span class="ps">$</span> <span class="cmd" x-text="'testpilot inspect ' + url"></span></div>
+            <template x-if="info && info.reachable">
+              <div>
+                <div><span class="ok">✓</span> kết nối <span class="dim" x-text="'HTTP ' + (info.status || 200)"></span></div>
+                <div x-show="info.title"><span class="dim">›</span> tên hệ thống  <span class="str" x-text="info.title"></span></div>
+                <div><span class="dim">›</span> tài liệu API  <span :class="info.openapi_found ? 'hl' : 'warn'"
+                  x-text="info.openapi_found ? ('OpenAPI · ' + info.endpoints + ' endpoint') : 'không tìm thấy OpenAPI'"></span></div>
+                <div><span class="dim">›</span> đề xuất      <span class="ok" x-text="info.recommended === 'requirement' ? 'tạo kịch bản từ yêu cầu nghiệp vụ' : 'tự động khám phá giao diện'"></span></div>
+              </div>
+            </template>
+            <template x-if="info && !info.reachable">
+              <div><span class="err">✗</span> không kết nối được tới hệ thống — kiểm tra lại địa chỉ hoặc kết nối mạng</div>
+            </template>
           </div>
         </div>
-        <ul class="mt-3 space-y-2 max-h-[420px] overflow-auto tp-scroll pr-1">
-          <template x-for="c in cases" :key="c.id">
-            <li class="tp-row" :class="picked.includes(c.id) && 'selected'">
-              <div class="flex items-center gap-2">
-                <input type="checkbox" class="accent-violet-600" :value="c.id" x-model="picked">
-                <span class="mono text-xs text-slate-400 whitespace-nowrap" x-text="c.id"></span>
-                <span class="tp-badge" :class="'tp-badge-' + c.type" x-text="c.type.toUpperCase()"></span>
-                <button class="truncate text-left text-sm font-medium hover:text-violet-700" @click="open = open === c.id ? null : c.id" x-text="c.title"></button>
-                <button @click="genData(c.id)" class="ml-auto text-xs text-violet-600 hover:underline shrink-0" title="Sinh dữ liệu EP/BVA">+ dữ liệu</button>
-              </div>
-              <pre x-show="open === c.id" x-cloak class="mt-2 bg-violet-50/60 rounded-lg p-3 text-[11px] overflow-auto max-h-64 tp-scroll mono"
-                x-text="JSON.stringify({data_sets: c.data_sets, steps: c.steps}, null, 1)"></pre>
-            </li>
-          </template>
-        </ul>
-        <p class="text-xs text-slate-500 mt-2">Bấm tên test để xem các bước. Test vừa sinh được chọn sẵn. Test <b>UI</b> cần Runner UI (Playwright) để chạy.</p>
       </div>
-    </section>
 
-    <section class="space-y-5">
-      <!-- 4. Kết quả -->
-      <div class="tp-card p-5" x-show="report" x-cloak>
-        <div class="flex flex-wrap items-center gap-2">
-          <h2 class="tp-card-title"><span class="tp-step-no">4</span> Kết quả</h2>
-          <button @click="exportReport()" class="tp-btn tp-btn-ghost tp-btn-sm ml-auto">📊 Xuất báo cáo Excel</button>
-          <button @click="TP.saveJson(report, 'TestPilot_BaoCao_' + TP.stamp() + '.json')" class="tp-btn tp-btn-ghost tp-btn-sm">🧩 JSON</button>
+      <!-- 02 Tạo kịch bản -->
+      <div :style="!info?.reachable && 'opacity:.5'">
+        <div class="flex flex-wrap items-baseline gap-4">
+          <div class="cmt">// 02 — <b>tạo kịch bản kiểm thử</b></div>
+          <span class="slash-list text-sm ml-auto">
+            <button class="opt" :class="mode === 'requirement' && 'on'" @click="mode = 'requirement'">Từ yêu cầu nghiệp vụ</button>
+            <button class="opt" :class="mode === 'autopilot' && 'on'" @click="mode = 'autopilot'">Tự động khám phá</button>
+          </span>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-          <div class="rounded-xl p-3 bg-green-50"><div class="text-2xl font-extrabold text-green-700" x-text="report?.passed"></div><div class="text-xs text-green-800">Pass</div></div>
-          <div class="rounded-xl p-3 bg-red-50"><div class="text-2xl font-extrabold text-red-600" x-text="report?.failed"></div><div class="text-xs text-red-700">Fail</div></div>
-          <div class="rounded-xl p-3 bg-violet-50"><div class="text-2xl font-extrabold text-violet-700" x-text="verdictCount('app_bug')"></div><div class="text-xs text-violet-800">Lỗi ứng dụng</div></div>
-          <div class="rounded-xl p-3 bg-amber-50"><div class="text-2xl font-extrabold text-amber-600" x-text="verdictCount('test_broken')"></div><div class="text-xs text-amber-800">Test hỏng</div></div>
+
+        <div x-show="mode === 'requirement'" class="mt-4">
+          <p class="small">Mô tả chức năng và tiêu chí chấp nhận. Kịch bản API được xây dựng dựa trên tài liệu OpenAPI và dữ liệu thực tế của hệ thống.</p>
+          <textarea x-model="reqText" rows="7" class="field editor mt-3" spellcheck="false"
+            placeholder="Đặt hàng hợp lệ trả về 201; tổng tiền bằng tổng (đơn giá × số lượng). Email sai định dạng bị từ chối với mã 422."></textarea>
+          <div class="flex flex-wrap items-center gap-3 mt-3">
+            <select x-model.number="count" class="field" style="width: auto">
+              <option :value="0">Số lượng: tự động (4–10)</option>
+              <option :value="20">20 kịch bản</option>
+              <option :value="50">50 kịch bản</option>
+              <option :value="100">100 kịch bản</option>
+            </select>
+            <button @click="generate()" :disabled="busy || !reqText.trim() || !info?.reachable" class="btn">Tạo kịch bản →</button>
+            <button x-show="sample" @click="reqText = sample" class="link text-sm">Chèn yêu cầu mẫu</button>
+          </div>
         </div>
-        <div class="mt-4">
-          <div class="flex justify-between text-xs text-slate-500 mb-1"><span x-text="'Chạy trên ' + (report?.target_url || '')"></span>
-            <span x-text="passRate() + '% pass'"></span></div>
-          <div class="tp-progress"><div :style="'width:' + passRate() + '%'"></div></div>
-          <p x-show="report?.skipped_ui?.length" class="text-xs text-slate-500 mt-1" x-text="'Bỏ qua ' + (report?.skipped_ui?.length || 0) + ' test UI'"></p>
+
+        <div x-show="mode === 'autopilot'" x-cloak class="mt-4">
+          <p class="small max-w-2xl">TestPilot mở website bằng trình duyệt, thu thập các trang và thành phần giao diện, sau đó đề xuất
+            kịch bản kiểm thử end-to-end. Nếu hệ thống có OpenAPI, kịch bản API được tạo kèm. Chỉ áp dụng cho các trang không yêu cầu đăng nhập.</p>
+          <button @click="autopilot()" :disabled="busy || !info?.reachable" class="btn mt-4">Bắt đầu khám phá →</button>
         </div>
-        <ul class="space-y-2 max-h-[30rem] overflow-auto tp-scroll mt-4 pr-1">
+
+        <div x-show="summary" x-cloak class="mt-5 border-l-2 pl-4 text-sm" style="border-color: var(--ink)" x-html="summary"></div>
+      </div>
+
+      <!-- Mô phỏng lỗi -->
+      <div x-show="Object.keys(flags).length" x-cloak>
+        <div class="cmt">// mô phỏng lỗi — <b>demo shop</b></div>
+        <p class="small mt-2">Bật các lỗi được cài sẵn để kiểm chứng khả năng phát hiện lỗi của bộ kiểm thử.</p>
+        <div class="flex flex-wrap gap-x-6 gap-y-2 mt-3 text-sm">
+          <template x-for="(on, name) in flags" :key="name">
+            <label class="flex items-center gap-2 cursor-pointer" :title="name">
+              <input type="checkbox" :checked="on" @change="toggle(name, $event.target.checked)">
+              <span :style="on && 'color: var(--fail)'" x-text="flagLabel[name] || name"></span>
+              <span class="mono text-[10.5px]" style="color: var(--muted)" x-text="name"></span>
+            </label>
+          </template>
+          <button @click="resetShop()" class="link">Khôi phục mặc định</button>
+        </div>
+      </div>
+
+      <!-- 03 Thực thi -->
+      <div>
+        <div class="flex flex-wrap items-end gap-4">
+          <div>
+            <div class="cmt">// 03 — <b>thực thi</b></div>
+            <h2 class="h2 mt-3">Kịch bản<sup class="count" x-text="'[' + visible().length + ']'"></sup></h2>
+          </div>
+          <label class="flex items-center gap-2 text-sm ml-2 cursor-pointer"><input type="checkbox" x-model="onlyThis"> Chỉ hệ thống đang chọn</label>
+          <div class="ml-auto flex items-center gap-5">
+            <button @click="exportCases()" class="link text-sm" :disabled="!visible().length">Excel <span class="arr">↓</span></button>
+            <button @click="run()" :disabled="busy || !runnable().length" class="btn">Thực thi <span x-text="'(' + runnable().length + ')'"></span></button>
+          </div>
+        </div>
+        <p class="small mt-2" x-text="picked.length ? ('Đã chọn ' + picked.length + ' kịch bản.') : 'Chưa chọn kịch bản: thực thi toàn bộ kịch bản API trong danh sách.'"></p>
+        <div class="rows mt-4 max-h-[440px] overflow-auto scroll">
+          <template x-for="c in visible()" :key="c.id">
+            <div class="row" :class="picked.includes(c.id) && 'on'">
+              <div class="flex items-center gap-3">
+                <input type="checkbox" :value="c.id" x-model="picked">
+                <span class="mono text-[11px] whitespace-nowrap" style="color: var(--muted)" x-text="c.id"></span>
+                <span class="tag" x-text="c.type"></span>
+                <button class="truncate text-left text-[15px] font-medium tracking-tight hover:underline" @click="open = open === c.id ? null : c.id" x-text="c.title"></button>
+                <button @click="genData(c.id)" class="ml-auto label hover:text-black shrink-0" title="Bổ sung dữ liệu theo phân vùng tương đương và giá trị biên">+ dữ liệu</button>
+              </div>
+              <div x-show="open === c.id" x-cloak class="code mt-3 max-h-72 scroll"
+                x-html="open === c.id ? TP.codeJson({data_sets: c.data_sets, steps: c.steps}) : ''"></div>
+            </div>
+          </template>
+          <div x-show="!visible().length" class="py-12 text-center small">Chưa có kịch bản cho hệ thống này. Tạo kịch bản ở mục 02.</div>
+        </div>
+        <p class="label mt-3">Kịch bản giao diện (UI) được thực thi bởi Runner UI.</p>
+      </div>
+
+      <!-- 04 Báo cáo -->
+      <div x-show="report" x-cloak>
+        <div class="flex flex-wrap items-end gap-4">
+          <div>
+            <div class="cmt">// 04 — <b>báo cáo kết quả</b></div>
+            <h2 class="h2 mt-3">Tỉ lệ đạt <span x-text="passRate() + '%'"></span></h2>
+          </div>
+          <span class="ml-auto slash-list text-sm">
+            <button @click="exportReport()" class="link">Excel <span class="arr">↓</span></button>
+            <button @click="TP.saveJson(report, 'TestPilot_BaoCao_' + TP.stamp() + '.json')" class="link">JSON <span class="arr">↓</span></button>
+          </span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 mt-6 border-t border-b hair">
+          <template x-for="(s, i) in reportStats()" :key="i">
+            <div class="stat" :class="i && 'sm:border-l hair sm:pl-5'">
+              <div class="label" x-text="s.label"></div>
+              <div class="v mt-2" style="font-size: 44px" :style="'color:' + s.color" x-text="TP.pad(s.value)"></div>
+            </div>
+          </template>
+        </div>
+        <div class="meter mt-4"><div :style="'width:' + passRate() + '%; background: var(--pass)'"></div></div>
+        <p class="label mt-2" x-text="'hệ thống: ' + (report?.target_url || '') + (report?.skipped_ui?.length ? (' · ' + report.skipped_ui.length + ' kịch bản UI không nằm trong lượt thực thi API') : '')"></p>
+
+        <div class="rows mt-6 max-h-[640px] overflow-auto scroll">
           <template x-for="(r, i) in report?.results || []" :key="i">
-            <li class="tp-row" :class="r.status === 'passed' ? 'tp-result-pass' : 'tp-result-fail'">
-              <div class="flex gap-2 items-center">
-                <span class="tp-badge" :class="r.status === 'passed' ? 'tp-badge-pass' : 'tp-badge-fail'" x-text="r.status === 'passed' ? 'PASS' : 'FAIL'"></span>
-                <span class="mono text-xs text-slate-400 whitespace-nowrap" x-text="r.test_case_id"></span>
-                <span class="truncate text-sm font-medium" x-text="r.title"></span>
-                <span class="ml-auto text-xs text-slate-400 shrink-0" x-text="r.data_set"></span>
+            <div class="row" :class="r.status === 'passed' ? 'res-pass' : 'res-fail'">
+              <div class="flex gap-3 items-center pl-2">
+                <span class="tag" :class="r.status === 'passed' ? 'tag-pass' : 'tag-fail'" x-text="r.status === 'passed' ? 'pass' : 'fail'"></span>
+                <span class="mono text-[11px] whitespace-nowrap" style="color: var(--muted)" x-text="r.test_case_id"></span>
+                <span class="truncate text-[15px] font-medium tracking-tight" x-text="r.title"></span>
+                <span class="ml-auto mono text-[11px] shrink-0" style="color: var(--muted)" x-text="(r.data_set !== '-' ? r.data_set + ' · ' : '') + (r.duration_ms ?? '') + 'ms'"></span>
               </div>
               <template x-if="r.status === 'failed'">
-                <div class="mt-2 text-xs space-y-2">
-                  <div class="mono text-red-700 bg-red-50 rounded-lg px-2 py-1"
-                    x-text="(r.request ? r.request.method + ' ' + r.request.path + '  →  ' : '') + r.error_msg"></div>
+                <div class="mt-3 pl-2 space-y-2">
+                  <div class="term"><div class="term-body py-2 text-[12px]">
+                    <div><span class="m" :class="'m-' + (r.request?.method || '')" x-text="r.request?.method"></span>
+                      <span class="cmd" x-text="r.request?.path"></span>
+                      <span class="dim" x-text="'→ ' + (r.actual_status ?? '')"></span></div>
+                    <div class="err" x-text="'✗ ' + r.error_msg"></div>
+                  </div></div>
                   <template x-if="r.ai_analysis">
-                    <div class="flex gap-2 items-start">
-                      <span class="tp-badge shrink-0" :class="'tp-verdict-' + r.ai_analysis.verdict"
-                        x-text="verdictLabel[r.ai_analysis.verdict] || r.ai_analysis.verdict"></span>
-                      <span class="text-slate-700 leading-relaxed" x-text="r.ai_analysis.explanation"></span>
+                    <div class="flex gap-3 items-start text-sm">
+                      <span class="tag shrink-0" :class="verdictCls[r.ai_analysis.verdict]" x-text="verdictLabel[r.ai_analysis.verdict] || r.ai_analysis.verdict"></span>
+                      <span style="color: var(--ink-2)" x-text="r.ai_analysis.explanation"></span>
                     </div>
                   </template>
                 </div>
               </template>
-            </li>
+            </div>
           </template>
-        </ul>
-      </div>
-
-      <div class="tp-card p-3">
-        <div class="flex items-center px-2 pb-2 text-sm gap-3"><b>🌐 Website đang test</b>
-          <span class="mono text-xs text-slate-400 truncate" x-text="viewUrl()"></span>
-          <a class="ml-auto text-xs text-violet-600 hover:underline shrink-0" :href="viewUrl()" target="_blank">mở tab mới ↗</a>
-          <button class="text-xs text-violet-600 hover:underline shrink-0" @click="reloadFrame()">tải lại</button></div>
-        <iframe x-ref="site" :src="viewUrl()" class="w-full h-[560px] rounded-xl border" style="border-color: var(--tp-border)"></iframe>
-        <p class="text-xs text-slate-400 px-2 pt-2">Một số website chặn hiển thị trong khung; khi đó dùng "mở tab mới".</p>
+        </div>
       </div>
     </section>
+
+    <!-- Xem trước -->
+    <aside class="xl:col-span-5">
+      <div class="xl:sticky xl:top-20 pb-6">
+        <div class="cmt mb-4">// xem trước — <b x-text="host(previewUrl())"></b></div>
+        <div class="frame">
+          <span class="corner tl">viewport</span><span class="corner tr">[16:10]</span>
+          <div class="inner-frame"><iframe x-ref="site" :src="previewUrl()" class="w-full h-[600px] block"></iframe></div>
+          <span class="corner bl mono" x-text="previewUrl()"></span>
+          <a class="corner br hover:text-black" :href="previewUrl()" target="_blank">mở tab mới ↗</a>
+        </div>
+        <p class="small mt-8">Một số website không cho phép hiển thị trong khung; khi đó hãy mở trong tab mới.</p>
+      </div>
+    </aside>
   </main>
 
-  <!-- Đang xử lý / lỗi -->
-  <div x-show="busy" x-cloak x-transition class="tp-toast flex items-center gap-3"><span class="tp-spinner"></span><span x-text="busyMsg"></span></div>
-  <div x-show="!busy && (error || toast)" x-cloak x-transition class="tp-toast" :style="error && 'background:#991b1b'"
-    @click="error = ''; toast = ''" x-text="error ? ('❌ ' + error) : toast"></div>
+  <div id="tp-status"></div>
+  <div x-show="busy" x-cloak x-transition class="toast"><span class="spin"></span><span class="mono text-[13px]" x-text="busyMsg"></span></div>
+  <div x-show="!busy && (error || toast)" x-cloak x-transition class="toast" :class="error && 'err'"
+    @click="error = ''; toast = ''" x-text="error || toast"></div>
 
 <script>
 const SHOP_REQ = `Khách hàng đặt mua điện thoại tại TVT MOBILE.
-- Đặt hàng hợp lệ trả 201, tổng tiền (total) = tổng (giá × số lượng) của các sản phẩm.
-- Email không hợp lệ (rỗng, thiếu @, thiếu tên miền) phải bị từ chối với mã 422.
-- Số lượng mỗi sản phẩm từ 1 đến 20; ngoài khoảng này bị từ chối 422.
-- Sản phẩm không tồn tại trả 404. Đặt quá số lượng tồn kho trả 409.
-- Xem lại đơn hàng theo mã đơn.`;
+- Đặt hàng hợp lệ trả về 201; tổng tiền (total) bằng tổng (đơn giá × số lượng) của các sản phẩm.
+- Email không hợp lệ (rỗng, thiếu @, thiếu tên miền) bị từ chối với mã 422.
+- Số lượng mỗi sản phẩm từ 1 đến 20; ngoài khoảng này bị từ chối với mã 422.
+- Sản phẩm không tồn tại trả về 404. Đặt vượt số lượng tồn kho trả về 409.
+- Tra cứu đơn hàng theo mã đơn trả về đúng thông tin đơn.`;
+const PET_REQ = `Quản lý thú cưng (Petstore).
+- Thêm thú cưng mới (POST /pet) với tên và trạng thái available trả về 200; response chứa id và name đúng như đã gửi.
+- Tra cứu thú cưng theo id vừa tạo trả về 200.
+- Tra cứu thú cưng với id không tồn tại (ví dụ 987654321) trả về 404.
+- Tìm thú cưng theo trạng thái available / pending / sold trả về 200.`;
 
 function lab() {
+  const shopUrl = location.origin + '/shop';
   return {
-    flags: {}, cases: [], picked: [], report: null, open: null,
-    url: location.origin + '/shop', sample: SHOP_REQ, presetNote: '', view: '',
-    reqText: '', autoSummary: '', busy: false, busyMsg: '', error: '', toast: '',
-    verdictLabel: {app_bug: 'Lỗi ứng dụng', test_broken: 'Test hỏng', flaky: 'Không ổn định'},
+    url: shopUrl, info: null, mode: 'requirement', reqText: '', sample: SHOP_REQ, view: '', count: 0,
+    flags: {}, cases: [], reqs: [], picked: [], onlyThis: true, report: null, open: null,
+    summary: '', busy: false, busyMsg: '', error: '', toast: '',
+    verdictLabel: {app_bug: 'lỗi ứng dụng', test_broken: 'lỗi kịch bản', flaky: 'không ổn định'},
+    verdictCls: {app_bug: 'tag-solid-fail', test_broken: 'tag-solid-warn', flaky: 'tag-solid-ink'},
+    flagLabel: {wrong_total: 'Sai tổng tiền', allow_empty_email: 'Bỏ kiểm tra email', ignore_stock: 'Bỏ kiểm tra tồn kho', ui_v2: 'Giao diện v2'},
     presets: [
-      {icon: '📱', label: 'Demo Shop (TVT MOBILE)', url: location.origin + '/shop', sample: SHOP_REQ,
-       note: 'Web mẫu của nhóm: có OpenAPI và bug flags. Sinh test từ yêu cầu hoặc Autopilot.'},
-      {icon: '🐾', label: 'Swagger Petstore', url: 'https://petstore3.swagger.io/api/v3/openapi.json',
-       view: 'https://petstore3.swagger.io',
-       sample: `Quản lý thú cưng (Petstore).
-- Thêm thú cưng mới (POST /pet) với tên và trạng thái available trả 200, response có id và name đúng như gửi.
-- Lấy thú cưng theo id vừa tạo trả 200.
-- Lấy thú cưng với id không tồn tại (vd. 987654321) trả 404.
-- Tìm thú cưng theo trạng thái available / pending / sold trả 200.`,
-       note: 'API mẫu công khai của Swagger; dữ liệu dùng chung với mọi người nên kết quả có thể thay đổi.'},
-      {icon: '🛍️', label: 'Sauce Demo (UI)', url: 'https://www.saucedemo.com', sample: '',
-       note: 'Web bán hàng mẫu để luyện test UI (standard_user / secret_sauce). Dùng Autopilot.'},
-      {icon: '✅', label: 'TodoMVC (UI)', url: 'https://demo.playwright.dev/todomvc/', sample: '',
-       note: 'Ứng dụng todo mẫu của Playwright. Dùng Autopilot để AI sinh test UI.'},
+      {label: 'Demo Shop', url: shopUrl, sample: SHOP_REQ},
+      {label: 'Swagger Petstore', url: 'https://petstore3.swagger.io/api/v3/openapi.json', view: 'https://petstore3.swagger.io', sample: PET_REQ},
+      {label: 'Sauce Demo', url: 'https://www.saucedemo.com', sample: ''},
     ],
 
     async init() {
-      this.pick(this.presets[0]);
-      await this.loadCases();
+      await Promise.all([this.loadCases(), this.inspect()]);
     },
-    pick(p) {
-      this.url = p.url; this.sample = p.sample || ''; this.presetNote = p.note || ''; this.view = p.view || '';
-      this.reqText = ''; this.targetChanged();
+    stepper() {
+      const n = this.visible().length;
+      return [
+        {title: 'Hệ thống mục tiêu', hint: this.info?.reachable ? (this.info.title || 'Đã kết nối') : 'Nhập địa chỉ website', done: !!this.info?.reachable, current: !this.info?.reachable},
+        {title: 'Tạo kịch bản', hint: n ? n + ' kịch bản' : 'Từ yêu cầu hoặc tự động', done: n > 0, current: !!this.info?.reachable && !n},
+        {title: 'Thực thi', hint: this.report ? this.report.total + ' lượt chạy' : 'Chạy và phân loại lỗi', done: !!this.report, current: n > 0 && !this.report},
+        {title: 'Báo cáo', hint: this.report ? 'Tỉ lệ đạt ' + this.passRate() + '%' : 'Excel / JSON', done: false, current: !!this.report},
+      ];
     },
-    viewUrl() { return this.view || this.url; },
-    reloadFrame() { this.$refs.site.src = this.viewUrl(); },
-    isShop() { return this.url.startsWith(location.origin); },
-    async targetChanged() {
-      if (!this.presets.some(p => p.url === this.url)) { this.view = ''; this.sample = ''; this.presetNote = ''; }
-      this.flags = this.isShop() ? await (await fetch('/api/shop/bugs')).json() : {};
+    reportStats() {
+      return [
+        {label: 'Đạt', value: this.report?.passed || 0, color: 'var(--pass)'},
+        {label: 'Không đạt', value: this.report?.failed || 0, color: 'var(--fail)'},
+        {label: 'Lỗi ứng dụng', value: this.verdictCount('app_bug'), color: 'var(--ink)'},
+        {label: 'Lỗi kịch bản', value: this.verdictCount('test_broken') + this.verdictCount('flaky'), color: 'var(--warn)'},
+      ];
     },
+    usePreset(p) { this.url = p.url; this.view = p.view || ''; this.sample = p.sample; this.reqText = ''; this.inspect(); },
+    previewUrl() { return this.view || this.url; },
+    host(u) { try { return new URL(u).host; } catch { return ''; } },
+    // Kịch bản thuộc hệ thống nào: lấy từ nội dung yêu cầu "[url] ..." hoặc "[Autopilot] url"
+    caseHost(c) {
+      const r = this.reqs.find(x => 'REQ-' + x.id === c.requirement_id);
+      const m = r && (r.text.match(/^\[Autopilot\]\s+(\S+)/) || r.text.match(/^\[(https?:[^\]]+)\]/));
+      return this.host(m ? m[1] : shopUrl);
+    },
+    visible() { return this.onlyThis ? this.cases.filter(c => this.caseHost(c) === this.host(this.url)) : this.cases; },
+    runnable() { return (this.picked.length ? this.cases.filter(c => this.picked.includes(c.id)) : this.visible()).filter(c => c.type === 'api'); },
     verdictCount(v) { return (this.report?.results || []).filter(r => r.ai_analysis?.verdict === v).length; },
     passRate() { return this.report?.total ? Math.round(this.report.passed / this.report.total * 100) : 0; },
-    async loadCases() { this.cases = await (await fetch('/api/test-cases')).json(); },
+    async loadCases() {
+      const [c, r] = await Promise.all([fetch('/api/test-cases'), fetch('/api/ai/requirements')]);
+      this.cases = await c.json(); this.reqs = await r.json();
+      TP.setStatus('page', this.visible().length + ' kịch bản · ' + this.host(this.url));
+    },
     flash(m) { this.toast = m; setTimeout(() => { if (this.toast === m) this.toast = ''; }, 3500); },
     async call(msg, fn) {
       this.busy = true; this.busyMsg = msg; this.error = '';
       try { await fn(); } catch (e) { this.error = e.message; }
       this.busy = false; TP.refreshStatus();
+      TP.setStatus('page', this.visible().length + ' kịch bản · ' + this.host(this.url));
     },
     async post(url, body) {
       const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
@@ -222,47 +313,63 @@ function lab() {
       if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
       return data;
     },
+    inspect() {
+      return this.call('testpilot inspect …', async () => {
+        this.report = null; this.picked = []; this.summary = '';
+        const r = await fetch('/api/ai/inspect?url=' + encodeURIComponent(this.url.trim()));
+        const data = await r.json();
+        if (!r.ok) { this.info = null; throw new Error(data.detail); }
+        this.info = data; this.mode = data.recommended;
+        if (!this.presets.some(p => p.url === this.url)) { this.view = ''; this.sample = ''; }
+        this.flags = data.demo_shop ? await (await fetch('/api/shop/bugs')).json() : {};
+      });
+    },
     generate() {
-      return this.call('AI đang đọc website và viết test case (~30 giây)…', async () => {
-        const r = await this.post('/api/ai/generate', {text: this.reqText, url: this.url});
-        this.autoSummary = (r.openapi_found ? '📄 Đã đọc OpenAPI của website. ' : '⚠️ Không tìm thấy OpenAPI, AI phải đoán đường dẫn API. ')
-          + r.ids.length + ' test case mới (đã chọn sẵn).';
-        this.picked = r.ids; await this.loadCases(); this.flash('✨ AI đã viết ' + r.ids.length + ' test case');
+      const eta = this.count >= 50 ? ' · khoảng ' + Math.ceil(this.count / 15) + ' phút' : '';
+      return this.call('testpilot generate' + (this.count ? ' --count ' + this.count : '') + eta + ' …', async () => {
+        const r = await this.post('/api/ai/generate', {text: this.reqText, url: this.url, count: this.count || null});
+        this.summary = `Đã tạo <b>${r.ids.length}</b> kịch bản kiểm thử` + (r.openapi_found ? ' dựa trên tài liệu OpenAPI của hệ thống.' :
+          '. Hệ thống không có tài liệu OpenAPI nên đường dẫn API được suy luận từ yêu cầu; nên rà soát trước khi thực thi.');
+        this.picked = r.ids; await this.loadCases();
       });
     },
     autopilot() {
-      return this.call('Autopilot đang mở website, khám phá các trang và viết test (~1–2 phút)…', async () => {
+      return this.call('testpilot explore … (1–2 phút)', async () => {
         const r = await this.post('/api/ai/autopilot', {url: this.url});
-        this.autoSummary = '🚀 ' + (r.app_summary || '') + ` (${r.test_cases.length} test case, đã duyệt ${r.pages.length} trang`
-          + (r.openapi_found ? ', có OpenAPI' : '') + ')'
-          + (r.warnings?.length ? ' · ⚠️ ' + r.warnings.length + ' cảnh báo: ' + r.warnings[0].slice(0, 160) : '');
+        this.summary = `<b>Tổng quan hệ thống.</b> ${r.app_summary || '—'}<br><span class="small">Đã khảo sát ${r.pages.length} trang`
+          + (r.openapi_found ? ' và tài liệu OpenAPI' : '') + `, đề xuất ${r.test_cases.length} kịch bản.`
+          + (r.warnings?.length ? ` ${r.warnings.length} kịch bản bị loại do không đúng định dạng.` : '') + '</span>';
         this.picked = r.test_cases.map(t => t.id); await this.loadCases();
       });
     },
     genData(id) {
-      return this.call('AI đang sinh dữ liệu EP/BVA cho ' + id + '…', async () => {
+      return this.call('testpilot data ' + id + ' …', async () => {
         await this.post('/api/ai/test-data/' + id + '?save=true');
-        await this.loadCases(); this.flash('🗂️ Đã thêm dữ liệu test cho ' + id);
+        await this.loadCases(); this.flash('Đã bổ sung dữ liệu kiểm thử cho ' + id + '.');
       });
     },
     run() {
-      return this.call('Đang chạy test và AI phân tích lỗi…', async () => {
-        this.report = await this.post('/api/ai/run', {test_case_ids: this.picked.length ? this.picked : null, url: this.url});
-        if (this.isShop()) this.reloadFrame();
+      return this.call('testpilot run --cases ' + this.runnable().length + ' …', async () => {
+        const ids = this.runnable().map(c => c.id);
+        this.report = await this.post('/api/ai/run', {test_case_ids: ids, url: this.url});
+        if (this.info?.demo_shop) this.$refs.site.src = this.previewUrl();
       });
     },
     exportCases() {
-      const qs = this.picked.length ? '?ids=' + encodeURIComponent(this.picked.join(',')) : '';
-      return this.call('Đang xuất Excel…', async () => { await TP.download('/api/export/test-cases.xlsx' + qs); this.flash('📊 Đã xuất test case ra Excel'); });
+      const ids = (this.picked.length ? this.picked : this.visible().map(c => c.id)).join(',');
+      return this.call('testpilot export --xlsx …', async () => { await TP.download('/api/export/test-cases.xlsx?ids=' + encodeURIComponent(ids)); this.flash('Đã xuất kịch bản kiểm thử (Excel).'); });
     },
     exportReport() {
-      return this.call('Đang xuất báo cáo…', async () => { await TP.download('/api/export/report.xlsx', this.report); this.flash('📊 Đã xuất báo cáo Excel'); });
+      return this.call('testpilot report --xlsx …', async () => { await TP.download('/api/export/report.xlsx', this.report); this.flash('Đã xuất báo cáo kết quả (Excel).'); });
     },
     async toggle(name, on) {
       await fetch('/api/shop/bugs/' + name, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: on})});
-      await this.targetChanged(); this.reloadFrame();
+      this.flags = await (await fetch('/api/shop/bugs')).json(); this.$refs.site.src = this.previewUrl();
     },
-    async resetShop() { await this.post('/api/shop/reset'); await this.targetChanged(); this.reloadFrame(); this.flash('↺ Đã reset Demo Shop'); }
+    async resetShop() {
+      await this.post('/api/shop/reset'); this.flags = await (await fetch('/api/shop/bugs')).json();
+      this.$refs.site.src = this.previewUrl(); this.flash('Đã khôi phục Demo Shop về trạng thái mặc định.');
+    }
   }
 }
 </script>

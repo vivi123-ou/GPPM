@@ -7,7 +7,7 @@
 
 TestPilot là ứng dụng hỗ trợ kiểm thử phần mềm theo yêu cầu. Người dùng nhập user story hoặc API spec, tạo test case, chạy kiểm thử API/UI và xem kết quả ngay trên dashboard. Repo cũng có **TVT MOBILE**, một cửa hàng điện thoại mẫu với dữ liệu SQLite và bug flags để thực hành, tích hợp và trình diễn luồng kiểm thử.
 
-> Trạng thái hiện tại: Demo Shop và module AI (Gemini / Groq / OpenAI / Ollama) đã chạy được; AI viết test, sinh dữ liệu, chạy thử test API và phân loại lỗi trên trang **AI Lab** (`/ai.html`). Runner UI (Playwright), lưu kết quả và màn hình duyệt bản vá trên dashboard đang được phát triển. Xem mục [AI Model](#ai-model).
+> Trạng thái hiện tại: Demo Shop và module AI (Gemini / Groq / OpenAI / Ollama) đã chạy được; AI viết test, sinh dữ liệu, chạy thử test API và phân loại lỗi trên trang **Kiểm thử website** (`/ai.html`). Runner UI (Playwright), lưu kết quả và màn hình duyệt bản vá trên dashboard đang được phát triển. Xem mục [AI Model](#ai-model).
 
 ## Tính năng
 
@@ -42,7 +42,7 @@ backend/
   db.py              # Schema SQLite của TestPilot
   models.py          # Schema test case dùng chung
   ai_client.py       # Điểm nối backend ↔ AI (USE_MOCK=1: mock, 0: AI thật)
-  ai_routes.py       # API /api/ai/* cho trang AI Lab
+  ai_routes.py       # API /api/ai/* cho trang Kiểm thử website
   export.py          # Xuất Excel/CSV test case và báo cáo
   runner/            # Runner API, UI và self-healing
   mocks/             # Dữ liệu mock cho AI
@@ -59,7 +59,7 @@ ShopDemo/            # Demo Shop: API, trang bán hàng và tài nguyên
     images/           # Ảnh sản phẩm, logo và banner
 frontend/
   index.html         # Dashboard TestPilot
-  ai.html            # AI Lab: sinh test, Autopilot, chạy thử + AI phân tích lỗi
+  ai.html            # Kiểm thử website: tạo kịch bản, tự động khám phá, thực thi, báo cáo
   theme.css, theme.js # Giao diện dùng chung (trắng–tím), thanh điều hướng
 README.md
 requirements.txt
@@ -219,20 +219,31 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 | Trang | Địa chỉ |
 | --- | --- |
 | Dashboard TestPilot | <http://127.0.0.1:8000/> |
-| **AI Lab** (thử AI) | <http://127.0.0.1:8000/ai.html> |
+| **Kiểm thử website** | <http://127.0.0.1:8000/ai.html> |
 | Demo Shop | <http://127.0.0.1:8000/shop> |
 | Swagger (gồm API `/api/ai/*`) | <http://127.0.0.1:8000/docs> |
 
-Góc phải trên của AI Lab hiển thị provider đang dùng (vd. `AI: gemini / gemini-3.5-flash`). Nếu thấy "Chế độ MOCK" thì `.env` đang để `USE_MOCK=1`.
+Góc phải trên thanh điều hướng hiển thị provider đang dùng (vd. `AI: gemini / gemini-3.5-flash`). Nếu thấy "Chế độ MOCK" thì `.env` đang để `USE_MOCK=1`.
 
-### Hướng dẫn 2: Thử AI trên web (AI Lab)
+### Số lượng kịch bản (tới 100+)
 
-1. Mở <http://127.0.0.1:8000/ai.html>.
-2. Ô **1**: bấm **Dùng yêu cầu mẫu** (yêu cầu đặt hàng TVT MOBILE) → **Sinh test case**. Khoảng 30 giây sau, test case mới xuất hiện ở ô **3**.
-3. Ô **2**: để tất cả bug flag **tắt** → ô **3** bấm **▶ Chạy test API + AI phân tích**. Kết quả ở ô **4**: gần như tất cả pass.
-4. Bật `wrong_total` và `allow_empty_email` → chạy lại. Test tổng tiền và email sai định dạng chuyển sang ❌, AI gắn nhãn **Lỗi ứng dụng** và giải thích (vd. "tổng đúng là 37.980.000 nhưng API trả 38.080.000").
-5. Tuỳ chọn: **+ dữ liệu** bên cạnh một test để AI sinh thêm dữ liệu biên; **🚀 Autopilot** để AI tự khám phá shop và viết test.
-6. Bấm **Reset shop** để tắt bug và khôi phục tồn kho sau khi demo.
+Ô **Số lượng** cạnh nút *Tạo kịch bản* cho phép chọn tự động (4–10), 20, 50 hoặc 100 kịch bản (API tối đa 150).
+Với số lượng lớn, TestPilot làm hai bước: AI **lập kế hoạch** danh sách kịch bản (luồng chính, từng quy tắc kiểm tra dữ liệu,
+giá trị biên, quy tắc nghiệp vụ, trường hợp không tồn tại/xung đột, dữ liệu bất thường), sau đó **viết chi tiết theo đợt 10 kịch bản**,
+chạy song song (`AI_PARALLEL`, mặc định 3). Đợt nào lỗi không làm hỏng cả lượt; kịch bản trùng tiêu đề bị loại.
+
+Hạn mức gói miễn phí ảnh hưởng tới tốc độ: Groq giới hạn **8.000 token/phút cho mỗi model**, nên TestPilot xoay vòng giữa
+3 model Groq (`LLM_FALLBACK`) và chỉ chờ khi mọi model đều đang bị giới hạn. Gemini miễn phí có hạn mức theo ngày; khi hết,
+Gemini được tạm bỏ qua 10 phút (`LLM_COOLDOWN`) thay vì thử lại ở mỗi lần gọi.
+
+### Hướng dẫn 2: Thử AI trên web (trang Kiểm thử website)
+
+1. Mở <http://127.0.0.1:8000/ai.html>. Bước **1 · Hệ thống mục tiêu** đã điền sẵn Demo Shop; bấm **Kiểm tra** để xem trạng thái kết nối, tài liệu OpenAPI và phương pháp đề xuất.
+2. Bước **2 · Tạo kịch bản**, tab *Từ yêu cầu nghiệp vụ*: bấm **Chèn yêu cầu mẫu**, chọn số lượng, bấm **Tạo kịch bản**.
+3. Mục **Mô phỏng lỗi**: để tất cả tắt → bước **3 · Thực thi** bấm **Thực thi**. Kết quả ở bước **4 · Báo cáo kết quả**: gần như tất cả *Đạt*.
+4. Bật *Sai tổng tiền* (`wrong_total`) và *Bỏ kiểm tra email* (`allow_empty_email`) → thực thi lại. Kịch bản tổng tiền và email sai định dạng chuyển sang *Không đạt*, được phân loại **Lỗi ứng dụng** kèm giải thích (ví dụ: "tổng đúng là 37.980.000 nhưng API trả 38.080.000").
+5. Tuỳ chọn: **Bổ sung dữ liệu** cạnh một kịch bản để thêm dữ liệu biên; tab *Tự động khám phá* để TestPilot tự khảo sát website.
+6. Bấm **Khôi phục mặc định** để tắt lỗi mô phỏng và khôi phục tồn kho.
 
 Mỗi lần chạy, runner tự reset tồn kho/đơn hàng của shop nhưng giữ nguyên các bug flag đang bật.
 
@@ -241,18 +252,17 @@ Mỗi lần chạy, runner tự reset tồn kho/đơn hàng của shop nhưng gi
 - **Provider chính** là `LLM_PROVIDER` trong `.env` (mặc định `gemini` → `gemini-3.5-flash`).
 - **Dự phòng** theo thứ tự `LLM_FALLBACK` (mặc định `groq` → `openai/gpt-oss-120b`, rồi `openai` → `gpt-5-mini`): khi provider chính lỗi hoặc hết lượt (429), AI tự chuyển sang cái tiếp theo. Provider nào chưa có khoá thì bỏ qua.
 - **Ollama** chỉ dùng khi đặt `LLM_PROVIDER=ollama`.
-- Góc phải trên của AI Lab hiển thị provider chính, danh sách dự phòng và provider **vừa dùng** thực tế.
+- Góc phải trên thanh điều hướng hiển thị provider chính, danh sách dự phòng và provider **vừa dùng** thực tế.
 
 ### Hướng dẫn 2b: Test website khác
 
-Ô **0. Website cần test** trên AI Lab nhận URL bất kỳ, kèm 4 website mẫu:
+Bước **1 · Hệ thống mục tiêu** nhận URL bất kỳ (trang web hoặc link `openapi.json`). Bấm **Kiểm tra**: TestPilot báo website có truy cập được không, có tài liệu OpenAPI không (bao nhiêu endpoint) và **đề xuất phương pháp** — *Từ yêu cầu nghiệp vụ* nếu có OpenAPI, *Tự động khám phá* nếu chỉ có giao diện. Danh sách kịch bản ở bước 3 mặc định chỉ hiển thị kịch bản của hệ thống đang chọn. Các hệ thống mẫu:
 
 | Website | Loại | Cách thử |
 | --- | --- | --- |
 | Demo Shop (TVT MOBILE) | API + UI, có bug flags | Sinh test từ yêu cầu mẫu hoặc Autopilot, rồi chạy |
-| Swagger Petstore (`https://petstore3.swagger.io/api/v3/openapi.json`) | API công khai | **Dùng yêu cầu mẫu** → **Sinh test từ yêu cầu** → **Chạy** |
-| Sauce Demo (`https://www.saucedemo.com`) | Chỉ giao diện | **🚀 Autopilot**: AI mở trang, đọc các ô nhập/nút và viết test UI |
-| TodoMVC (`https://demo.playwright.dev/todomvc/`) | Chỉ giao diện | **🚀 Autopilot** |
+| Swagger Petstore (`https://petstore3.swagger.io/api/v3/openapi.json`) | API công khai | **Chèn yêu cầu mẫu** → **Tạo kịch bản** → **Thực thi** |
+| Sauce Demo (`https://www.saucedemo.com`) | Chỉ giao diện | Tab **Tự động khám phá** → **Bắt đầu khám phá** |
 
 - Website có OpenAPI (AI tự dò `/openapi.json`, `/api/v3/openapi.json`, `/swagger.json`..., hoặc dán thẳng link file `.json`): AI dùng đúng đường dẫn API và dữ liệu thật, test API **chạy được ngay** và được AI phân loại lỗi.
 - Website chỉ có giao diện: Autopilot sinh test **UI** (bấm tên test để xem các bước). Chạy test UI cần Runner UI (Playwright) của dashboard, đang được phát triển.
@@ -264,9 +274,9 @@ Kết quả thử thật: Petstore 4 test (3 pass, 1 fail: tạo thú cưng hợ
 
 | Ở đâu | Nút | File nhận được |
 | --- | --- | --- |
-| Trang Tổng quan (`/`) | **⬇ Xuất tài liệu** → Excel / CSV / JSON | Test case đang hiển thị (theo ô tìm kiếm và bộ lọc) |
-| AI Lab, mục 3 | **📊 Excel** | Test case đã chọn (hoặc tất cả) |
-| AI Lab, mục 4 | **📊 Xuất báo cáo Excel** / **🧩 JSON** | Báo cáo lần chạy gần nhất |
+| Trang Tổng quan (`/`) | **Xuất tài liệu ▾** → Excel / CSV / JSON | Test case đang hiển thị (theo ô tìm kiếm và bộ lọc) |
+| Kiểm thử website, bước 3 | **Xuất Excel** | Kịch bản đã chọn (hoặc toàn bộ của hệ thống đang chọn) |
+| Kiểm thử website, bước 4 | **Xuất báo cáo (Excel)** / **JSON** | Báo cáo lần thực thi gần nhất |
 
 File Excel test case gồm 4 sheet: **Tổng quan** (số lượng theo loại / ưu tiên, model AI), **Test cases** (mỗi bước một dòng: hành động, đối tượng, dữ liệu, kết quả mong đợi), **Dữ liệu test** (bộ dữ liệu hợp lệ / không hợp lệ, tô màu), **Yêu cầu** (yêu cầu gốc). Báo cáo kết quả gồm tỉ lệ pass, số lỗi theo nhãn AI và từng lượt chạy kèm giải thích, đề xuất sửa. CSV có BOM để Excel mở đúng tiếng Việt.
 
@@ -304,7 +314,8 @@ Chạy trên Demo Shop với Gemini (`gemini-3.5-flash`), yêu cầu đặt hàn
 | Method | Endpoint | Mô tả |
 | --- | --- | --- |
 | `GET` | `/api/ai/config` | Provider/model đang dùng |
-| `POST` | `/api/ai/generate` | `{"text", "url"}` → AI đọc OpenAPI/dữ liệu của website và viết test |
+| `GET` | `/api/ai/inspect?url=...` | Kiểm tra hệ thống: kết nối, OpenAPI, số endpoint, phương pháp đề xuất |
+| `POST` | `/api/ai/generate` | `{"text", "url", "count"}` → tạo kịch bản (count tối đa 150) |
 | `POST` | `/api/ai/run` | `{"test_case_ids": [...], "url"}` → chạy test API + AI phân loại lỗi |
 | `POST` | `/api/ai/autopilot` | `{"url": "..."}` → AI khám phá và sinh test (mặc định lưu vào danh sách) |
 | `POST` | `/api/ai/test-data/{id}?save=true` | Sinh dữ liệu EP/BVA cho một test case |

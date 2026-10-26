@@ -2,11 +2,10 @@
 (function () {
   const LINKS = [
     { href: '/', label: 'Tổng quan' },
-    { href: '/ai.html', label: 'AI Lab' },
+    { href: '/ai.html', label: 'Kiểm thử' },
     { href: '/shop', label: 'Demo Shop', external: true },
-    { href: '/docs', label: 'API Docs', external: true },
+    { href: '/docs', label: 'API', external: true },
   ];
-  const ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>';
 
   function renderNav() {
     const el = document.getElementById('tp-nav');
@@ -14,33 +13,47 @@
     const path = location.pathname === '/index.html' ? '/' : location.pathname;
     el.innerHTML = `
       <nav class="tp-nav">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
-          <a href="/" class="flex items-center gap-2.5 mr-2">
-            <span class="tp-logo">${ICON}</span>
-            <span class="font-extrabold text-lg tracking-tight">Test<span class="text-violet-600">Pilot</span></span>
-          </a>
-          <div class="hidden md:flex items-center gap-1">
-            ${LINKS.map(l => `<a class="tp-link ${l.href === path ? 'active' : ''}" href="${l.href}"
-                ${l.external ? 'target="_blank"' : ''}>${l.label}${l.external ? ' ↗' : ''}</a>`).join('')}
+        <div class="wrap inner">
+          <a href="/" class="wordmark">TestPilot</a>
+          <div class="hidden md:flex items-center gap-10 label">
+            <span id="tp-ai-status"><span class="dot idle"></span>Đang kết nối</span>
+            <span class="hidden lg:inline">Kiểm thử tự động · v0.1.0</span>
           </div>
-          <div class="ml-auto flex items-center gap-2 text-xs" id="tp-ai-status">
-            <span class="tp-chip" style="cursor:default"><span class="tp-spinner dark"></span> Đang kiểm tra AI…</span>
+          <div class="navlinks">
+            ${LINKS.map((l, i) => `${i ? '<span class="sep">/</span>' : ''}<a class="${l.href === path ? 'active' : ''}"
+                href="${l.href}" ${l.external ? 'target="_blank"' : ''}>${l.label}</a>`).join('')}
           </div>
         </div>
       </nav>`;
+    renderStatusbar();
     fetch('/api/ai/config').then(r => r.json()).then(c => {
       const box = document.getElementById('tp-ai-status');
-      let dot = '#16a34a', text;
-      if (c.use_mock) { dot = '#d97706'; text = 'Chế độ MOCK'; }
-      else if (!c.provider) { dot = '#dc2626'; text = 'AI chưa cấu hình'; }
-      else {
-        const used = c.last_used || (c.provider + '/' + c.model);
-        text = 'AI: ' + used.replace('/', ' · ');
+      let cls = '', text;
+      if (c.use_mock) { cls = 'warn'; text = 'Chế độ mock'; }
+      else if (!c.provider) { cls = 'off'; text = 'AI chưa cấu hình'; }
+      else text = 'AI · ' + (c.last_used || (c.provider + '/' + c.model)).replace('/', ' / ');
+      if (box) {
+        box.innerHTML = `<span class="dot ${cls}"></span>${text}`;
+        box.title = c.fallback?.length ? 'Dự phòng: ' + c.fallback.join(', ') : '';
       }
-      const title = c.fallback?.length ? 'Dự phòng: ' + c.fallback.join(', ') : '';
-      box.innerHTML = `<span class="tp-chip" style="cursor:default" title="${title}">
-        <span style="width:8px;height:8px;border-radius:99px;background:${dot}"></span>${text}</span>`;
+      TP.setStatus('ai', `<span class="dot ${cls}"></span>${text.replace('AI · ', '')}`);
+      TP.setStatus('fb', c.fallback?.length ? 'dự phòng ' + c.fallback.length : '');
     }).catch(() => {});
+  }
+
+  // Thanh trạng thái kiểu IDE ở đáy trang (trang nào có <div id="tp-status"> thì hiện)
+  function renderStatusbar() {
+    const el = document.getElementById('tp-status');
+    if (!el || el.dataset.ready) return;
+    el.dataset.ready = '1';
+    document.body.classList.add('has-statusbar');
+    el.innerHTML = `<div class="statusbar">
+      <span class="acc">⎇ AI-Model</span>
+      <span class="seg" data-k="ai"></span><span class="seg" data-k="fb"></span>
+      <span class="seg" data-k="page"></span>
+      <span class="seg ml-auto" data-k="extra"></span>
+      <span class="seg hidden sm:inline-flex">UTF-8</span><span class="seg hidden sm:inline-flex">Apache-2.0</span>
+    </div>`;
   }
 
   window.TP = {
@@ -64,6 +77,25 @@
     stamp() {
       const d = new Date(), p = n => String(n).padStart(2, '0');
       return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+    },
+    pad(n, w = 2) { return String(n).padStart(w, '0'); },
+    esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); },
+    // JSON → bảng có số dòng + tô màu cú pháp (biến {{x}} được làm nổi)
+    codeJson(obj) {
+      const text = JSON.stringify(obj, null, 2) || '';
+      const color = line => TP.esc(line)
+        .replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)(\s*:)?/g, (m, s, colon) =>
+          colon ? `<span class="j-key">${s}</span>${colon}` : `<span class="j-str">${s}</span>`)
+        .replace(/\b(-?\d+(?:\.\d+)?)\b(?![^<]*<\/span>)/g, '<span class="j-num">$1</span>')
+        .replace(/\b(true|false)\b(?![^<]*<\/span>)/g, '<span class="j-bool">$1</span>')
+        .replace(/\bnull\b(?![^<]*<\/span>)/g, '<span class="j-null">null</span>')
+        .replace(/\{\{\s*\w+\s*\}\}/g, m => `<span class="j-var">${m}</span>`);
+      return '<table>' + text.split('\n').map((l, i) =>
+        `<tr><td class="ln">${i + 1}</td><td class="lc">${color(l)}</td></tr>`).join('') + '</table>';
+    },
+    setStatus(key, html) {
+      const s = document.querySelector(`#tp-status [data-k="${key}"]`);
+      if (s) s.innerHTML = html || '';
     },
     refreshStatus: renderNav,
   };

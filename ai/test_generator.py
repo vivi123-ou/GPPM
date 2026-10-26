@@ -16,26 +16,50 @@ from ai.llm_provider import LLMProvider, get_provider
 from backend.models import TestCase
 
 _PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
-DEFAULT_EXCLUDE = "/api/shop/bugs,/api/shop/reset,/api/requirements,/api/test-cases,/api/runs"
+DEFAULT_EXCLUDE = ("/api/shop/bugs,/api/shop/reset,/api/requirements,/api/test-cases,/api/runs,"
+                   "/api/ai/,/api/export/")
+
+
+BATCH_SIZE = 10        # số test case mỗi lần gọi AI (câu trả lời dài hơn dễ bị cắt / sai JSON)
+MAX_COUNT = 150
+PLAN_CHUNK = 25
 
 
 def generate_test_cases(requirement_text: str, openapi_spec: dict | str | None = None,
                         ui_elements: str | None = None, sample_data: str | None = None,
                         *, min_cases: int = 4,
-                        max_cases: int = 10, id_prefix: str | None = None,
+                        max_cases: int = 10, count: int | None = None, id_prefix: str | None = None,
                         provider: LLMProvider | None = None) -> list[TestCase]:
     """Sinh test case. openapi_spec / ui_elements là ngữ cảnh tuỳ chọn giúp AI dùng
-    đúng path API và đúng phần tử UI có thật."""
-    llm = provider or get_provider()
-    user = prompts.TEST_CASES_USER.format(
-        requirement=requirement_text.strip(),
-        context=_build_context(openapi_spec, ui_elements, sample_data),
-        min_cases=min_cases, max_cases=max_cases)
-    raw = unwrap_list(llm.complete_json(prompts.TEST_CASES_SYSTEM, user), "test_cases")
+    đúng path API và đúng phần tử UI có thật.
 
+    count: số test case mong muốn. Lớn hơn BATCH_SIZE thì AI lập kế hoạch kịch bản trước
+    rồi viết chi tiết theo từng đợt (chạy song song, AI_PARALLEL luồng)."""
+    llm = provider or get_provider()
+    context = _build_context(openapi_spec, ui_elements, sample_data)
+    requirement = requirement_text.strip()
+    if count and count > BATCH_SIZE:
+        cases = _generate_many(llm, requirement, context, min(count, MAX_COUNT))
+    else:
+        lo, hi = (count, count) if count else (min_cases, max_cases)
+        user = prompts.TEST_CASES_USER.format(requirement=requirement, context=context,
+                                              min_cases=lo, max_cases=hi)
+        cases, errors = _ask(llm, user)
+        if not cases:
+            raise ValueError("AI không sinh được test case hợp lệ: " + "; ".join(errors[:3]))
+
+    prefix = id_prefix or _prefix_for(requirement_text)
+    width = 3 if len(cases) > 99 else 2
+    for i, tc in enumerate(cases, 1):
+        tc.id = f"{prefix}-{i:0{width}d}"
+    return cases
+
+
+def _ask(llm: LLMProvider, user: str) -> tuple[list[TestCase], list[str]]:
+    """Một lần gọi AI + một lần cho AI tự sửa các case lệch schema."""
+    raw = unwrap_list(llm.complete_json(prompts.TEST_CASES_SYSTEM, user), "test_cases")
     cases, errors = _validate_all(raw)
     if errors:
-        # Cho AI một lần tự sửa các case lệch schema
         repair = user + "\n\n" + prompts.REPAIR_USER.format(errors="\n".join(errors))
         try:
             raw2 = unwrap_list(llm.complete_json(prompts.TEST_CASES_SYSTEM, repair), "test_cases")
@@ -44,12 +68,65 @@ def generate_test_cases(requirement_text: str, openapi_spec: dict | str | None =
                 cases, errors = cases2, errors2
         except Exception:
             pass
-    if not cases:
-        raise ValueError("AI không sinh được test case hợp lệ: " + "; ".join(errors[:3]))
+    return cases, errors
 
-    prefix = id_prefix or _prefix_for(requirement_text)
-    for i, tc in enumerate(cases, 1):
-        tc.id = f"{prefix}-{i:02d}"
+
+def plan_scenarios(llm: LLMProvider, requirement: str, context: str, count: int) -> list[dict]:
+    """AI lập danh sách kịch bản (chỉ tiêu đề + gợi ý) — ngắn nên một lần gọi được cả trăm mục."""
+    scenarios: list[dict] = []
+    for _ in range(count // PLAN_CHUNK + 3):  # mỗi lượt tối đa PLAN_CHUNK mục để câu trả lời không bị cắt
+        need = min(count - len(scenarios), PLAN_CHUNK)
+        if need <= 0:
+            break
+        avoid = ("\nAlready planned (do NOT repeat): " + "; ".join(s["title"] for s in scenarios)
+                 if scenarios else "")
+        data = llm.complete_json(prompts.PLAN_SYSTEM, prompts.PLAN_USER.format(
+            requirement=requirement, context=context, count=need, avoid=avoid[:6000]))
+        seen = {s["title"].strip().lower() for s in scenarios}
+        for s in unwrap_list(data, "scenarios"):
+            title = str((s or {}).get("title", "")).strip() if isinstance(s, dict) else ""
+            if title and title.lower() not in seen:
+                seen.add(title.lower())
+                scenarios.append(s)
+    return scenarios[:count]
+
+
+def _generate_many(llm: LLMProvider, requirement: str, context: str, count: int) -> list[TestCase]:
+    from concurrent.futures import ThreadPoolExecutor
+
+    scenarios = plan_scenarios(llm, requirement, context, count)
+    if not scenarios:
+        raise ValueError("AI không lập được kế hoạch kiểm thử")
+    batches = [scenarios[i:i + BATCH_SIZE] for i in range(0, len(scenarios), BATCH_SIZE)]
+
+    def run(batch: list[dict]) -> list[TestCase]:
+        lines = "\n".join(f"{i}. [{s.get('type', 'api')}/{s.get('priority', 'medium')}/{s.get('technique', '')}] "
+                          f"{s['title']} — {s.get('notes', '')}" for i, s in enumerate(batch, 1))
+        user = prompts.BATCH_USER.format(requirement=requirement, context=context,
+                                         count=len(batch), scenarios=lines)
+        try:
+            return _ask(llm, user)[0]
+        except Exception:
+            return []           # một đợt lỗi không làm hỏng cả lượt sinh
+
+    workers = max(1, int(os.getenv("AI_PARALLEL", "3")))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(run, batches))
+        # Đợt lỗi / thiếu kịch bản: sinh bù một lần cho các kịch bản còn thiếu trong kế hoạch
+        got = {tc.title.strip().lower() for batch in results for tc in batch}
+        missing = [s for s in scenarios if s["title"].strip().lower() not in got]
+        if missing and len(got) < len(scenarios):
+            retry = [missing[i:i + BATCH_SIZE] for i in range(0, len(missing), BATCH_SIZE)]
+            results += list(pool.map(run, retry))
+    cases, seen = [], set()
+    for batch in results:                    # giữ thứ tự kế hoạch, bỏ trùng tiêu đề
+        for tc in batch:
+            key = tc.title.strip().lower()
+            if key not in seen:
+                seen.add(key)
+                cases.append(tc)
+    if not cases:
+        raise ValueError("AI không sinh được test case hợp lệ ở mọi đợt")
     return cases
 
 
@@ -137,7 +214,7 @@ def _validate_all(raw: list) -> tuple[list[TestCase], list[str]]:
         try:
             tc = TestCase.model_validate(normalize(item))
             _check_semantics(tc)
-            cases.append(tc)
+            cases.append(_resolve_tokens(tc))
         except (ValidationError, ValueError) as e:
             errors.append(f"#{i} ({item.get('title', '?')}): {str(e)[:300]}")
     return cases, errors
@@ -193,9 +270,27 @@ def normalize(item: dict) -> dict:
     return item
 
 
+_CODE_IN_DATA = re.compile(r"\.repeat\(|new Array\(|\.join\(|\"\s*\*\s*\d+|\\\"\s*\+\s*\\\"")
+
+
+def _resolve_tokens(tc: TestCase) -> TestCase:
+    """Thay <len:N>, <faker:x> trong bước và dữ liệu bằng giá trị thật (chuỗi đúng độ dài...)."""
+    from ai.data_generator import resolve_tokens   # import muộn để tránh vòng lặp import
+    for s in tc.steps:
+        s.body = resolve_tokens(s.body)
+        s.value = resolve_tokens(s.value)
+        s.path = resolve_tokens(s.path)
+        s.expect = resolve_tokens(s.expect)
+    for d in tc.data_sets:
+        d.values = resolve_tokens(d.values)
+    return tc
+
+
 def _check_semantics(tc: TestCase) -> None:
     if not tc.steps:
         raise ValueError("không có bước nào")
+    if _CODE_IN_DATA.search(tc.model_dump_json()):
+        raise ValueError('dữ liệu chứa biểu thức code (vd. "a".repeat(300)); hãy dùng token "<len:N>"')
     for i, s in enumerate(tc.steps):
         if tc.type == "api" and not (s.method and s.path):
             raise ValueError(f"bước {i}: test API cần method và path")

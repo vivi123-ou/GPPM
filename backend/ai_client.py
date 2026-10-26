@@ -30,11 +30,12 @@ def generate_test_data(test_case: TestCase) -> list[DataSet]:
     from ai.data_generator import generate_test_data as real
     return real(test_case)
 
-def classify_failure(test_case: TestCase, result: dict, api_paths: list[str] | None = None) -> dict:
+def classify_failure(test_case: TestCase, result: dict, api_paths: list[str] | None = None,
+                     context: str = "") -> dict:
     if USE_MOCK:
         return _mock("classify.json")
     from ai.classifier import classify_failure as real
-    return real(test_case, result, api_paths=api_paths)
+    return real(test_case, result, api_paths=api_paths, context=context)
 
 def suggest_locator(step: dict, dom_snapshot: str) -> dict:
     if USE_MOCK:

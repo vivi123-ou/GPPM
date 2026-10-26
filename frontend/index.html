@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TestPilot – AI Test Engineer</title>
+  <title>TestPilot — Kiểm thử tự động</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/theme.css">
   <script src="/theme.js"></script>
@@ -15,244 +15,283 @@
   <div id="tp-nav"></div>
 
   <!-- HERO -->
-  <section class="tp-hero">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-10 grid lg:grid-cols-5 gap-10 items-start">
-      <div class="lg:col-span-3">
-        <span class="tp-chip" style="cursor:default">✨ AI viết test · sinh dữ liệu · chạy · phân tích lỗi</span>
-        <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.1]">
-          Từ yêu cầu đến test case<br><span class="tp-gradient-text">chỉ trong vài giây</span>
-        </h1>
-        <p class="mt-4 text-[17px] text-slate-500 max-w-2xl">Dán user story hoặc API spec. TestPilot đóng vai kỹ sư kiểm thử:
-          viết kịch bản, sinh dữ liệu hợp lệ – không hợp lệ – giá trị biên, và xuất tài liệu Excel cho cả nhóm.</p>
+  <header class="grid-bg border-b hair">
+    <div class="wrap pt-14 pb-16 grid lg:grid-cols-12 gap-10 items-end">
+      <div class="lg:col-span-7">
+        <div class="cmt reveal">// nền tảng kiểm thử tự động ứng dụng AI</div>
+        <h1 class="display mt-6 reveal d1">Kiểm thử<br>tự động<span class="caret"></span></h1>
+        <p class="lead mt-8 max-w-xl reveal d2">Từ user story hoặc tài liệu API, TestPilot viết kịch bản kiểm thử, sinh dữ liệu theo
+          phân vùng tương đương và giá trị biên, thực thi trên hệ thống và giải thích nguyên nhân khi kết quả không đạt.</p>
+        <div class="mt-9 flex flex-wrap items-center gap-7 reveal d3">
+          <a href="#create" class="btn">Tạo kịch bản <span>→</span></a>
+          <a href="/ai.html" class="link">Kiểm thử một website <span class="arr">→</span></a>
+        </div>
+      </div>
 
-        <div class="tp-card p-5 mt-7">
-          <div class="flex flex-wrap gap-2 mb-3">
-            <span class="text-sm text-slate-500 mr-1 self-center">Thử nhanh:</span>
-            <template x-for="t in templates" :key="t.label">
-              <button class="tp-chip" :class="reqText === t.text && 'active'" @click="reqText = t.text" x-text="t.icon + ' ' + t.label"></button>
+      <!-- Terminal minh hoạ -->
+      <div class="lg:col-span-5 reveal d2">
+        <div class="term">
+          <div class="term-bar"><i></i><i></i><i></i><span class="ml-2">testpilot — phiên mẫu</span><span class="ml-auto">zsh</span></div>
+          <div class="term-body h-[300px]">
+            <template x-for="(l, i) in termShown" :key="i">
+              <div x-html="l"></div>
             </template>
-          </div>
-          <textarea x-model="reqText" rows="5" class="tp-input"
-            placeholder="VD: Khách hàng đặt mua điện thoại. Đặt hàng hợp lệ trả 201, tổng tiền = giá × số lượng. Email sai định dạng trả 422…"></textarea>
-          <div class="flex flex-wrap items-center gap-3 mt-3">
-            <button @click="generate()" :disabled="loading || !reqText.trim()" class="tp-btn tp-btn-primary">
-              <span x-show="loading" class="tp-spinner"></span>
-              <span x-text="loading ? 'AI đang viết test…' : '✨ Sinh test case'"></span>
-            </button>
-            <a href="/ai.html" class="tp-btn tp-btn-ghost">Mở AI Lab: chạy test & Autopilot →</a>
-            <p x-show="error" x-text="error" class="text-sm text-red-600 w-full"></p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Thống kê -->
-      <div class="lg:col-span-2 grid grid-cols-2 gap-4 lg:mt-12">
-        <template x-for="s in stats()" :key="s.label">
-          <div class="tp-card p-5">
-            <div class="text-2xl" x-text="s.icon"></div>
-            <div class="tp-stat-value mt-3" :class="s.color" x-text="s.value"></div>
-            <div class="text-sm text-slate-500 mt-1" x-text="s.label"></div>
-          </div>
-        </template>
-        <div class="tp-card p-5 col-span-2">
-          <div class="flex justify-between text-sm"><span class="font-semibold">Độ phủ ưu tiên</span>
-            <span class="text-slate-500" x-text="cases.length + ' test case'"></span></div>
-          <div class="flex gap-2 mt-3 text-xs">
-            <span class="tp-badge tp-badge-high" x-text="'Cao ' + count('priority','high')"></span>
-            <span class="tp-badge tp-badge-medium" x-text="'Trung bình ' + count('priority','medium')"></span>
-            <span class="tp-badge tp-badge-low" x-text="'Thấp ' + count('priority','low')"></span>
+            <span class="caret"></span>
           </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- CÁCH HOẠT ĐỘNG -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <template x-for="(s, i) in steps" :key="i">
-        <div class="tp-card p-5">
-          <div class="flex items-center gap-3">
-            <span class="tp-step-no" x-text="'0' + (i + 1)"></span>
-            <span class="font-bold" x-text="s.title"></span>
-          </div>
-          <p class="text-sm text-slate-500 mt-2" x-text="s.text"></p>
+    <!-- Số liệu -->
+    <div class="wrap grid grid-cols-2 lg:grid-cols-4 border-t hair">
+      <template x-for="(s, i) in stats()" :key="s.label">
+        <div class="stat px-1 lg:px-0" :class="i && 'lg:border-l hair lg:pl-6'">
+          <div class="label" x-text="s.label"></div>
+          <div class="v mt-3" x-text="TP.pad(s.value)"></div>
         </div>
       </template>
     </div>
-  </section>
+  </header>
 
-  <!-- KHÔNG GIAN LÀM VIỆC -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 pb-16 grid lg:grid-cols-5 gap-6" id="workspace">
-    <section class="tp-card p-5 lg:col-span-2 flex flex-col" style="max-height: 820px">
-      <div class="flex items-center justify-between gap-2">
-        <h2 class="tp-card-title">📋 Test case <span class="tp-badge tp-badge-api" x-text="filtered().length"></span></h2>
-        <div class="flex gap-1.5" x-data="{ open: false }" @click.outside="open = false">
-          <div class="relative">
-            <button class="tp-btn tp-btn-ghost tp-btn-sm" @click="open = !open">⬇ Xuất tài liệu</button>
-            <div x-show="open" x-cloak class="absolute right-0 mt-2 w-60 tp-card p-2 z-20 text-sm">
-              <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-violet-50" @click="exportFile('xlsx'); open=false">
-                📊 <b>Excel</b> <span class="text-slate-500">– tài liệu test case</span></button>
-              <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-violet-50" @click="exportFile('csv'); open=false">
-                🧾 <b>CSV</b> <span class="text-slate-500">– mở bằng Excel/Sheets</span></button>
-              <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-violet-50" @click="exportFile('json'); open=false">
-                🧩 <b>JSON</b> <span class="text-slate-500">– cho runner/CI</span></button>
-            </div>
-          </div>
-        </div>
+  <!-- 01 TẠO KỊCH BẢN -->
+  <section id="create" class="wrap py-16 grid lg:grid-cols-12 gap-10 border-b hair">
+    <div class="lg:col-span-4">
+      <div class="cmt">// 01 — <b>tạo kịch bản</b></div>
+      <h2 class="h1 mt-4">Từ yêu cầu<br>đến kịch bản.</h2>
+      <p class="small mt-5 max-w-sm">Mô tả chức năng và tiêu chí chấp nhận. Kịch bản API được xây dựng trên tài liệu OpenAPI và dữ liệu thực tế của Demo Shop.</p>
+    </div>
+    <div class="lg:col-span-8">
+      <div class="flex flex-wrap items-baseline gap-y-1 text-[15px]">
+        <span class="label mr-4">Mẫu</span>
+        <span class="slash-list">
+          <template x-for="t in templates" :key="t.label">
+            <button class="opt" :class="reqText === t.text && 'on'" @click="reqText = t.text" x-text="t.label"></button>
+          </template>
+        </span>
       </div>
-      <div class="flex gap-2 mt-4">
-        <input x-model="q" class="tp-input" placeholder="🔍 Tìm theo ID hoặc tiêu đề…">
-        <select x-model="typeFilter" class="tp-input" style="width: 110px">
-          <option value="">Tất cả</option><option value="api">API</option><option value="ui">UI</option>
+      <textarea x-model="reqText" rows="7" class="field editor mt-4" spellcheck="false"
+        placeholder="Đặt hàng hợp lệ trả về 201; tổng tiền bằng tổng (đơn giá × số lượng). Email sai định dạng bị từ chối với mã 422."></textarea>
+      <div class="flex flex-wrap items-center gap-3 mt-4">
+        <select x-model.number="count" class="field" style="width: auto">
+          <option :value="0">Số lượng: tự động (4–10)</option>
+          <option :value="20">20 kịch bản</option>
+          <option :value="50">50 kịch bản</option>
+          <option :value="100">100 kịch bản</option>
         </select>
+        <button @click="generate()" :disabled="loading || !reqText.trim()" class="btn">
+          <span x-show="loading" class="spin"></span>
+          <span x-text="loading ? (count >= 50 ? 'Đang tạo ' + count + ' kịch bản…' : 'Đang tạo kịch bản…') : 'Tạo kịch bản →'"></span>
+        </button>
+        <span class="label ml-auto hidden sm:inline" x-text="reqText.length + ' ký tự'"></span>
       </div>
-      <div class="mt-3 space-y-2 overflow-auto tp-scroll pr-1 flex-1">
-        <template x-for="c in filtered()" :key="c.id">
-          <div @click="select(c)" class="tp-row cursor-pointer" :class="selected && selected.id === c.id && 'selected'">
-            <div class="flex items-center gap-2">
-              <span class="mono text-xs text-slate-400 whitespace-nowrap" x-text="c.id"></span>
-              <span class="tp-badge" :class="'tp-badge-' + c.type" x-text="c.type.toUpperCase()"></span>
-              <span class="tp-badge" :class="'tp-badge-' + c.priority" x-text="prioLabel[c.priority]"></span>
-              <span class="ml-auto text-xs text-slate-400" x-text="c.steps.length + ' bước'"></span>
+      <p x-show="error" x-cloak class="mt-3 text-sm" style="color: var(--fail)" x-text="error"></p>
+    </div>
+  </section>
+
+  <!-- 02 QUY TRÌNH -->
+  <section class="wrap py-16 border-b hair">
+    <div class="cmt">// 02 — <b>quy trình</b></div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 mt-8">
+      <template x-for="(s, i) in steps" :key="i">
+        <div class="py-6 pr-6 border-t hair lg:border-t-0 lg:border-l lg:pl-6" :class="i === 0 && 'lg:border-l-0 lg:pl-0'">
+          <div class="mono text-[13px]" style="color: var(--muted)" x-text="TP.pad(i + 1)"></div>
+          <div class="h3 mt-10" x-text="s.title"></div>
+          <p class="small mt-3" x-text="s.text"></p>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- 03 KỊCH BẢN -->
+  <section id="workspace" class="wrap py-16">
+    <div class="flex flex-wrap items-end gap-6">
+      <div>
+        <div class="cmt">// 03 — <b>kịch bản kiểm thử</b></div>
+        <h2 class="h1 mt-4">Kịch bản<sup class="count" x-text="'[' + filtered().length + ']'"></sup></h2>
+      </div>
+      <div class="ml-auto flex flex-wrap items-center gap-5 text-[15px]">
+        <span class="label">Xuất</span>
+        <span class="slash-list">
+          <button class="link" @click="exportFile('xlsx')">Excel <span class="arr">↓</span></button>
+          <button class="link" @click="exportFile('csv')">CSV <span class="arr">↓</span></button>
+          <button class="link" @click="exportFile('json')">JSON <span class="arr">↓</span></button>
+        </span>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-12 gap-10 mt-10">
+      <!-- Danh sách -->
+      <div class="lg:col-span-5">
+        <div class="flex gap-2">
+          <input x-model="q" class="field" placeholder="Tìm theo mã hoặc tiêu đề">
+          <select x-model="typeFilter" class="field" style="width: 120px">
+            <option value="">Tất cả</option><option value="api">API</option><option value="ui">UI</option>
+          </select>
+        </div>
+        <div class="rows mt-4 max-h-[720px] overflow-auto scroll">
+          <template x-for="c in filtered()" :key="c.id">
+            <div class="row cursor-pointer" :class="selected && selected.id === c.id && 'on'" @click="select(c)">
+              <div class="flex items-center gap-2">
+                <span class="mono text-[11px]" style="color: var(--muted)" x-text="c.id"></span>
+                <span class="tag" x-text="c.type"></span>
+                <span class="tag" :class="c.priority === 'high' && 'tag-high'" x-text="prioLabel[c.priority]"></span>
+                <span class="ml-auto label" x-text="c.steps.length + ' bước'"></span>
+              </div>
+              <div class="mt-1.5 text-[15px] font-medium tracking-tight" x-text="c.title"></div>
             </div>
-            <div class="mt-1 font-medium text-[15px]" x-text="c.title"></div>
+          </template>
+          <div x-show="!cases.length" class="py-16 text-center small">Chưa có kịch bản kiểm thử. Nhập yêu cầu ở mục 01 để bắt đầu.</div>
+        </div>
+      </div>
+
+      <!-- Chi tiết -->
+      <div class="lg:col-span-7">
+        <template x-if="!selected">
+          <div class="h-full min-h-[360px] grid place-items-center border border-dashed" style="border-color: var(--line-2)">
+            <div class="text-center">
+              <div class="mono text-sm" style="color: var(--muted)">// chọn một kịch bản để xem chi tiết</div>
+            </div>
           </div>
         </template>
-        <div x-show="!cases.length" class="text-center py-12 text-slate-400">
-          <div class="text-4xl">🧪</div><p class="mt-2 text-sm">Chưa có test nào. Nhập yêu cầu ở trên để AI viết test.</p>
-        </div>
-      </div>
-    </section>
+        <template x-if="selected">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="mono text-[12px]" style="color: var(--muted)" x-text="selected.id + ' · v' + (selected.version || 1)"></span>
+              <span class="tag" x-text="selected.type"></span>
+              <span class="tag" :class="selected.priority === 'high' && 'tag-high'" x-text="'ưu tiên ' + prioLabel[selected.priority]"></span>
+              <span class="ml-auto slash-list text-sm">
+                <button class="opt" :class="mode === 'view' && 'on'" @click="mode = 'view'">Bảng</button>
+                <button class="opt" :class="mode === 'json' && 'on'" @click="mode = 'json'">JSON</button>
+                <button class="opt" :class="mode === 'edit' && 'on'" @click="mode = 'edit'">Chỉnh sửa</button>
+              </span>
+            </div>
+            <h3 class="h2 mt-3" x-text="selected.title"></h3>
 
-    <!-- Chi tiết -->
-    <section class="tp-card p-5 lg:col-span-3">
-      <template x-if="!selected">
-        <div class="h-full min-h-[320px] grid place-items-center text-center text-slate-400">
-          <div><div class="text-5xl">👈</div><p class="mt-3">Chọn một test case để xem các bước, dữ liệu và chỉnh sửa.</p></div>
-        </div>
-      </template>
-      <template x-if="selected">
-        <div>
-          <div class="flex flex-wrap items-start gap-3">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <span class="mono text-xs text-slate-400" x-text="selected.id"></span>
-                <span class="tp-badge" :class="'tp-badge-' + selected.type" x-text="selected.type.toUpperCase()"></span>
-                <span class="tp-badge" :class="'tp-badge-' + selected.priority" x-text="'Ưu tiên ' + prioLabel[selected.priority]"></span>
-                <span class="text-xs text-slate-400" x-text="'v' + (selected.version || 1)"></span>
+            <div x-show="mode === 'view'" class="mt-7 space-y-8">
+              <div>
+                <div class="label mb-2">Các bước</div>
+                <div class="overflow-auto scroll">
+                  <table class="tbl">
+                    <thead><tr><th>#</th><th>Hành động</th><th>Đối tượng</th><th>Dữ liệu</th><th>Kết quả mong đợi</th></tr></thead>
+                    <tbody>
+                      <template x-for="(s, i) in selected.steps" :key="i">
+                        <tr>
+                          <td class="mono" style="color: var(--muted)" x-text="TP.pad(i + 1)"></td>
+                          <td class="whitespace-nowrap"><span class="m" :class="'m-' + describe(s)[0]" x-text="describe(s)[0]"></span></td>
+                          <td class="mono text-xs break-all" x-text="describe(s)[1]"></td>
+                          <td class="mono text-xs break-all" style="color: var(--ink-2)" x-text="describe(s)[2]"></td>
+                          <td class="text-xs" x-text="describe(s)[3]"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <h2 class="text-xl font-bold mt-1" x-text="selected.title"></h2>
-            </div>
-            <div class="flex gap-2">
-              <button class="tp-btn tp-btn-ghost tp-btn-sm" @click="mode = mode === 'view' ? 'edit' : 'view'"
-                x-text="mode === 'view' ? '✏️ Sửa JSON' : '👁 Xem bảng'"></button>
-              <button class="tp-btn tp-btn-danger tp-btn-sm" @click="remove()">🗑 Xóa</button>
-            </div>
-          </div>
-
-          <div x-show="mode === 'view'" class="mt-5 space-y-5">
-            <div>
-              <h3 class="font-semibold text-sm text-slate-500 mb-2">CÁC BƯỚC</h3>
-              <div class="overflow-auto tp-scroll rounded-xl border" style="border-color: var(--tp-border)">
-                <table class="w-full text-sm">
-                  <thead class="bg-violet-50 text-violet-800 text-left whitespace-nowrap">
-                    <tr><th class="px-3 py-2 w-10">#</th><th class="px-3 py-2">Hành động</th><th class="px-3 py-2">Đối tượng</th>
-                      <th class="px-3 py-2">Dữ liệu</th><th class="px-3 py-2">Mong đợi</th></tr>
-                  </thead>
-                  <tbody>
-                    <template x-for="(s, i) in selected.steps" :key="i">
-                      <tr class="border-t align-top" style="border-color: var(--tp-border)">
-                        <td class="px-3 py-2 text-slate-400" x-text="i + 1"></td>
-                        <td class="px-3 py-2 font-semibold text-violet-700 whitespace-nowrap" x-text="describe(s)[0]"></td>
-                        <td class="px-3 py-2 mono text-xs break-all" x-text="describe(s)[1]"></td>
-                        <td class="px-3 py-2 mono text-xs break-all text-slate-600" x-text="describe(s)[2]"></td>
-                        <td class="px-3 py-2 text-xs" x-text="describe(s)[3]"></td>
-                      </tr>
-                    </template>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div x-show="selected.data_sets?.length">
-              <h3 class="font-semibold text-sm text-slate-500 mb-2">DỮ LIỆU TEST</h3>
-              <div class="grid sm:grid-cols-2 gap-2">
-                <template x-for="d in selected.data_sets" :key="d.name">
-                  <div class="tp-row">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium text-sm" x-text="d.name"></span>
-                      <span class="tp-badge ml-auto" :class="d.expected === 'accept' ? 'tp-badge-pass' : 'tp-badge-fail'"
-                        x-text="d.expected === 'accept' ? 'Hợp lệ' : 'Không hợp lệ'"></span>
+              <div x-show="selected.data_sets?.length">
+                <div class="label mb-2" x-text="'Dữ liệu kiểm thử [' + (selected.data_sets?.length || 0) + ']'"></div>
+                <div class="rows">
+                  <template x-for="d in selected.data_sets" :key="d.name">
+                    <div class="row flex gap-3 items-start">
+                      <span class="tag shrink-0" :class="d.expected === 'accept' ? 'tag-pass' : 'tag-fail'" x-text="d.expected === 'accept' ? 'hợp lệ' : 'không hợp lệ'"></span>
+                      <span class="text-sm font-medium shrink-0" x-text="d.name"></span>
+                      <span class="mono text-xs break-all" style="color: var(--muted)" x-text="JSON.stringify(d.values)"></span>
                     </div>
-                    <div class="mono text-xs text-slate-500 mt-1 break-all" x-text="JSON.stringify(d.values)"></div>
-                  </div>
-                </template>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <div x-show="mode === 'json'" class="mt-7 code max-h-[620px] scroll" x-html="TP.codeJson(strip(selected))"></div>
+
+            <div x-show="mode === 'edit'" class="mt-7">
+              <textarea x-model="editText" rows="22" class="field editor text-xs" spellcheck="false"></textarea>
+              <div class="mt-4 flex items-center gap-6">
+                <button @click="save()" class="btn">Lưu thay đổi</button>
+                <button @click="remove()" class="link" style="color: var(--fail)">Xóa kịch bản</button>
+                <span x-show="msg" class="text-sm" x-text="msg"></span>
               </div>
             </div>
           </div>
-
-          <div x-show="mode === 'edit'" class="mt-5">
-            <textarea x-model="editText" rows="22" class="tp-input mono text-xs" spellcheck="false"></textarea>
-            <div class="mt-3 flex items-center gap-3">
-              <button @click="save()" class="tp-btn tp-btn-green">💾 Lưu thay đổi</button>
-              <p x-show="msg" x-text="msg" class="text-sm"></p>
-            </div>
-          </div>
-        </div>
-      </template>
-    </section>
-  </main>
-
-  <footer class="border-t" style="border-color: var(--tp-border)">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 text-sm text-slate-500 flex flex-wrap gap-3 justify-between">
-      <span><b class="text-slate-700">TestPilot</b> · AI Test Engineer · Apache-2.0</span>
-      <span>FastAPI · Playwright · Gemini / Groq / OpenAI / Ollama</span>
+        </template>
+      </div>
     </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="overflow-hidden" style="background: var(--ink)">
+    <div class="wrap pt-10 flex flex-wrap gap-4 justify-between label" style="color: #8c8d95">
+      <span class="slash-list"><span>TestPilot</span><span>Kiểm thử tự động</span><span>Apache-2.0</span></span>
+      <span class="slash-list"><span>FastAPI</span><span>Playwright</span><span>Gemini · Groq · OpenAI · Ollama</span></span>
+    </div>
+    <div class="wrap"><div class="giant mt-6 -mb-[0.12em]">TestPilot</div></div>
   </footer>
 
-  <div x-show="toast" x-cloak x-transition class="tp-toast" x-text="toast"></div>
+  <div id="tp-status"></div>
+  <div x-show="toast" x-cloak x-transition class="toast" x-text="toast"></div>
 
 <script>
 function app() {
   return {
-    reqText: '', cases: [], selected: null, editText: '', mode: 'view',
-    loading: false, error: '', msg: '', toast: '', q: '', typeFilter: '',
-    prioLabel: {high: 'Cao', medium: 'Trung bình', low: 'Thấp'},
+    reqText: '', cases: [], selected: null, editText: '', mode: 'view', count: 0,
+    loading: false, error: '', msg: '', toast: '', q: '', typeFilter: '', termShown: [],
+    prioLabel: {high: 'cao', medium: 'trung bình', low: 'thấp'},
     templates: [
-      {icon: '🛒', label: 'Đặt hàng', text: `Khách hàng đặt mua điện thoại tại TVT MOBILE.
-- Đặt hàng hợp lệ trả 201, tổng tiền (total) = tổng (giá × số lượng) của các sản phẩm.
-- Email không hợp lệ (rỗng, thiếu @, thiếu tên miền) phải bị từ chối với mã 422.
-- Số lượng mỗi sản phẩm từ 1 đến 20; ngoài khoảng này bị từ chối 422.
-- Sản phẩm không tồn tại trả 404. Đặt quá số lượng tồn kho trả 409.`},
-      {icon: '📱', label: 'Danh sách sản phẩm', text: `Khách xem danh sách điện thoại.
-- GET danh sách sản phẩm trả 200, mỗi sản phẩm có id, tên, hãng, giá và tồn kho.
+      {label: 'Đặt hàng', text: `Khách hàng đặt mua điện thoại tại TVT MOBILE.
+- Đặt hàng hợp lệ trả về 201; tổng tiền (total) bằng tổng (đơn giá × số lượng) của các sản phẩm.
+- Email không hợp lệ (rỗng, thiếu @, thiếu tên miền) bị từ chối với mã 422.
+- Số lượng mỗi sản phẩm từ 1 đến 20; ngoài khoảng này bị từ chối với mã 422.
+- Sản phẩm không tồn tại trả về 404. Đặt vượt số lượng tồn kho trả về 409.`},
+      {label: 'Danh sách sản phẩm', text: `Khách xem danh sách điện thoại.
+- GET danh sách sản phẩm trả về 200; mỗi sản phẩm có id, tên, hãng, giá và tồn kho.
 - Giá và tồn kho không được âm.`},
-      {icon: '🔎', label: 'Tra cứu đơn hàng', text: `Khách tra cứu đơn hàng theo mã đơn.
-- Sau khi đặt hàng thành công, tra cứu theo mã đơn trả 200 với đúng tổng tiền và sản phẩm.
-- Mã đơn không tồn tại trả 404.`},
-      {icon: '📦', label: 'Tồn kho', text: `Tồn kho được cập nhật khi đặt hàng.
+      {label: 'Tra cứu đơn hàng', text: `Khách tra cứu đơn hàng theo mã đơn.
+- Sau khi đặt hàng thành công, tra cứu theo mã đơn trả về 200 với đúng tổng tiền và sản phẩm.
+- Mã đơn không tồn tại trả về 404.`},
+      {label: 'Tồn kho', text: `Tồn kho được cập nhật khi đặt hàng.
 - Đặt mua N sản phẩm thành công thì tồn kho của sản phẩm đó giảm N.
-- Đặt quá số lượng tồn kho bị từ chối 409 và tồn kho giữ nguyên.`},
+- Đặt vượt số lượng tồn kho bị từ chối với mã 409 và tồn kho giữ nguyên.`},
     ],
     steps: [
-      {title: 'Nhập yêu cầu', text: 'User story, tiêu chí chấp nhận, hoặc chỉ cần URL của website.'},
-      {title: 'AI phân tích', text: 'Đọc OpenAPI và dữ liệu thật, xác định luồng chính, lỗi và giá trị biên.'},
-      {title: 'Sinh & chạy test', text: 'Test API/UI dạng JSON, chạy trên hệ thống, AI phân loại lỗi.'},
-      {title: 'Xuất tài liệu', text: 'Excel, CSV, JSON cho tài liệu dự án, runner và CI.'},
+      {title: 'Phân tích', text: 'Đọc yêu cầu, tài liệu OpenAPI và dữ liệu thực tế; xác định luồng chính, trường hợp lỗi và giá trị biên.'},
+      {title: 'Tạo kịch bản', text: 'Kịch bản API/UI dạng JSON theo schema chung, kèm bộ dữ liệu hợp lệ và không hợp lệ.'},
+      {title: 'Thực thi', text: 'Chạy trên hệ thống mục tiêu; mỗi lỗi được phân loại: lỗi ứng dụng, lỗi kịch bản hoặc không ổn định.'},
+      {title: 'Báo cáo', text: 'Xuất Excel, CSV, JSON cho tài liệu dự án và quy trình CI.'},
+    ],
+    termScript: [
+      '<span class="ps">$</span> <span class="cmd">testpilot generate --target shop --count 20</span>',
+      '<span class="dim">› đọc OpenAPI · 3 endpoint · 8 sản phẩm</span>',
+      '<span class="dim">› lập kế hoạch 20 kịch bản · sinh theo 2 đợt</span>',
+      '<span class="ok">✓</span> đã tạo <span class="hl">20</span> kịch bản <span class="dim">(14,2s)</span>',
+      '<span class="ps">$</span> <span class="cmd">testpilot run --target shop</span>',
+      '<span class="ok">PASS</span> <span class="dim">TC-01</span> POST /api/shop/checkout <span class="dim">201 · 38ms</span>',
+      '<span class="ok">PASS</span> <span class="dim">TC-02</span> POST /api/shop/checkout <span class="dim">422 · 6ms</span>',
+      '<span class="err">FAIL</span> <span class="dim">TC-07</span> total <span class="str">38.080.000</span> ≠ <span class="str">37.980.000</span>',
+      '     <span class="warn">→ lỗi ứng dụng</span> <span class="dim">· tổng tiền cộng thừa 100.000</span>',
+      '<span class="ok">✓</span> 19/20 đạt · báo cáo <span class="hl">report.xlsx</span>',
     ],
 
     async load() {
       const r = await fetch('/api/test-cases');
       this.cases = await r.json();
       if (this.selected) this.selected = this.cases.find(c => c.id === this.selected.id) || null;
+      TP.setStatus('page', this.cases.length + ' kịch bản');
+      if (!this.termShown.length) this.typeTerm();
     },
-    count(k, v) { return this.cases.filter(c => c[k] === v).length; },
+    async typeTerm() {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      for (;;) {
+        this.termShown = [];
+        for (const line of this.termScript) { await sleep(line.includes('$') ? 900 : 380); this.termShown.push(line); }
+        await sleep(5000);
+      }
+    },
+    count_(k, v) { return this.cases.filter(c => c[k] === v).length; },
     stats() {
       return [
-        {icon: '🧪', label: 'Test case', value: this.cases.length, color: 'text-violet-700'},
-        {icon: '🔌', label: 'Test API', value: this.count('type', 'api'), color: 'text-violet-600'},
-        {icon: '🖱️', label: 'Test UI', value: this.count('type', 'ui'), color: 'text-green-600'},
-        {icon: '🗂️', label: 'Bộ dữ liệu', value: this.cases.reduce((n, c) => n + (c.data_sets?.length || 0), 0), color: 'text-slate-700'},
+        {label: 'Kịch bản kiểm thử', value: this.cases.length},
+        {label: 'Kịch bản API', value: this.count_('type', 'api')},
+        {label: 'Kịch bản UI', value: this.count_('type', 'ui')},
+        {label: 'Bộ dữ liệu', value: this.cases.reduce((n, c) => n + (c.data_sets?.length || 0), 0)},
       ];
     },
     filtered() {
@@ -260,6 +299,7 @@ function app() {
       return this.cases.filter(c => (!this.typeFilter || c.type === this.typeFilter)
         && (!q || c.id.toLowerCase().includes(q) || c.title.toLowerCase().includes(q)));
     },
+    strip(c) { const {version, ...rest} = c; return rest; },
     describe(s) {
       const j = v => (v == null || (typeof v === 'object' && !Object.keys(v).length)) ? '' : JSON.stringify(v);
       if (s.method) {
@@ -274,26 +314,25 @@ function app() {
       const exp = s.action === 'assert_text' ? `hiển thị "${s.expect}"` : s.action === 'assert_visible' ? 'hiển thị' : '';
       return [s.action || '', target, s.value || '', exp];
     },
-    flash(m) { this.toast = m; setTimeout(() => this.toast = '', 3000); },
+    flash(m) { this.toast = m; setTimeout(() => { if (this.toast === m) this.toast = ''; }, 3200); },
     async generate() {
       this.loading = true; this.error = '';
       try {
-        const r = await fetch('/api/requirements', {
+        const r = await fetch('/api/ai/generate', {
           method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({text: this.reqText})
+          body: JSON.stringify({text: this.reqText, count: this.count || null})
         });
         const data = await r.json();
-        if (!r.ok) throw new Error(data.detail);
+        if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
         await this.load(); TP.refreshStatus();
-        this.flash(`✨ AI đã viết ${data.count} test case`);
+        this.flash(`Đã tạo ${data.ids.length} kịch bản kiểm thử.`);
         document.getElementById('workspace').scrollIntoView({behavior: 'smooth'});
       } catch (e) { this.error = e.message; }
       this.loading = false;
     },
     select(c) {
       this.selected = c; this.msg = ''; this.mode = 'view';
-      const {version, ...rest} = c;
-      this.editText = JSON.stringify(rest, null, 2);
+      this.editText = JSON.stringify(this.strip(c), null, 2);
     },
     async save() {
       try {
@@ -303,13 +342,13 @@ function app() {
           body: JSON.stringify(body)
         });
         if (!r.ok) throw new Error(JSON.stringify((await r.json()).detail));
-        this.msg = '✅ Đã lưu'; await this.load(); this.flash('💾 Đã lưu test case');
-      } catch (e) { this.msg = '❌ ' + e.message; }
+        this.msg = 'Đã lưu.'; await this.load(); this.flash('Đã lưu thay đổi.');
+      } catch (e) { this.msg = 'Lỗi: ' + e.message; }
     },
     async remove() {
-      if (!confirm('Xóa test này?')) return;
+      if (!confirm('Xóa kịch bản kiểm thử này?')) return;
       await fetch('/api/test-cases/' + this.selected.id, {method: 'DELETE'});
-      this.selected = null; await this.load(); this.flash('🗑 Đã xóa test case');
+      this.selected = null; await this.load(); this.flash('Đã xóa kịch bản kiểm thử.');
     },
     async exportFile(kind) {
       const ids = this.filtered().map(c => c.id);
@@ -317,8 +356,8 @@ function app() {
       try {
         if (kind === 'json') TP.saveJson(this.filtered(), `TestPilot_TestCases_${TP.stamp()}.json`);
         else await TP.download(`/api/export/test-cases.${kind}${qs}`);
-        this.flash('⬇ Đã xuất ' + ids.length + ' test case (' + kind.toUpperCase() + ')');
-      } catch (e) { this.flash('❌ ' + e.message); }
+        this.flash('Đã xuất ' + ids.length + ' kịch bản (' + kind.toUpperCase() + ').');
+      } catch (e) { this.flash(e.message); }
     }
   }
 }

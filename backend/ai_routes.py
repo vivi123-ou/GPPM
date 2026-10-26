@@ -7,7 +7,7 @@ import os
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend import ai_client
 from backend.db import get_conn
@@ -56,9 +56,53 @@ def config():
     return info
 
 
+@router.get("/inspect")
+def inspect(url: str):
+    """Kiểm tra nhanh hệ thống mục tiêu: truy cập được không, có OpenAPI không, nên tạo test theo cách nào."""
+    import re
+    from urllib.parse import urlparse
+    from ai.autopilot import api_base, find_openapi
+    from ai.test_generator import is_excluded
+
+    u = urlparse(url)
+    if u.scheme not in ("http", "https") or not u.netloc:
+        raise HTTPException(400, "Địa chỉ không hợp lệ. Ví dụ: https://example.com")
+    info = {"url": url, "reachable": False, "status": None, "title": "", "openapi_found": False,
+            "endpoints": 0, "api_base": None, "demo_shop": url.startswith(_default_url())}
+    try:
+        r = httpx.get(url, timeout=10, follow_redirects=True)
+        info.update(reachable=r.status_code < 500, status=r.status_code)
+        m = re.search(r"<title[^>]*>(.*?)</title>", r.text, re.I | re.S)
+        if m:
+            info["title"] = re.sub(r"\s+", " ", m.group(1)).strip()[:120]
+        elif "json" in r.headers.get("content-type", ""):
+            info["title"] = ((r.json().get("info") or {}).get("title") or "") if isinstance(r.json(), dict) else ""
+    except Exception as e:
+        info["error"] = str(e)[:200]
+    spec = find_openapi(url)
+    if spec:
+        ops = [(p, m) for p, o in spec.get("paths", {}).items() if not is_excluded(p)
+               for m in o if m.lower() in ("get", "post", "put", "patch", "delete")]
+        info.update(openapi_found=True, endpoints=len(ops), api_base=api_base(url, spec),
+                    title=info["title"] or (spec.get("info") or {}).get("title", ""))
+        info["reachable"] = True
+    info["recommended"] = "requirement" if info["openapi_found"] else "autopilot"
+    return info
+
+
+@router.get("/requirements")
+def requirements():
+    """Danh sách yêu cầu (để biết test case thuộc hệ thống nào)."""
+    conn = get_conn()
+    rows = conn.execute("SELECT id, text, created_at FROM requirements ORDER BY id").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 class GenerateIn(BaseModel):
     text: str
     url: str | None = None
+    count: int | None = Field(default=None, ge=1, le=150)   # None = AI tự chọn (4–10)
 
 
 @router.post("/generate")
@@ -71,7 +115,7 @@ def generate(body: GenerateIn):
     url = body.url or _default_url()
     spec = find_openapi(url)
     try:
-        cases = generate_test_cases(body.text, openapi_spec=spec,
+        cases = generate_test_cases(body.text, openapi_spec=spec, count=body.count,
                                     sample_data=fetch_samples(url, spec) if spec else None)
     except Exception as e:
         raise HTTPException(502, f"AI lỗi: {e}")
@@ -113,6 +157,10 @@ def run_tests(body: RunIn):
     spec = find_openapi(url)
     base = api_base(url, spec)
     api_paths = list((spec or {}).get("paths", {})) or None
+    # Dữ liệu thật + ràng buộc API để AI kiểm lại kỳ vọng của test trước khi kết luận "lỗi ứng dụng"
+    from ai.autopilot import fetch_samples
+    from ai.test_generator import summarize_openapi
+    context = (summarize_openapi(spec, limit=3000) + "\n\n" + fetch_samples(url, spec)) if spec else ""
 
     cases = _load_cases(body.test_case_ids)
     skipped_ui = [c.id for c in cases if c.type == "ui"]
@@ -121,13 +169,20 @@ def run_tests(body: RunIn):
         raise HTTPException(404, "Không có test case API nào để chạy (test UI cần Runner UI)")
     before_each = _shop_reset_hook(base) if body.reset_shop else None
 
-    out = []
+    out, failed = [], []
     for tc in cases:
         for res in run_api_test(tc, base, before_each=before_each):
             item = {"test_case_id": tc.id, "title": tc.title, **res}
             if res["status"] == "failed" and body.classify:
-                item["ai_analysis"] = ai_client.classify_failure(tc, res, api_paths)
+                failed.append((tc, item))
             out.append(item)
+
+    # Chạy test tuần tự (shop được reset giữa các lượt) nhưng phân loại lỗi song song
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max(1, int(os.getenv("AI_PARALLEL", "3")))) as pool:
+        verdicts = pool.map(lambda x: ai_client.classify_failure(x[0], x[1], api_paths, context), failed)
+        for (_, item), verdict in zip(failed, verdicts):
+            item["ai_analysis"] = verdict
     passed = sum(r["status"] == "passed" for r in out)
     return {"target_url": base, "total": len(out), "passed": passed, "failed": len(out) - passed,
             "skipped_ui": skipped_ui, "results": out}
