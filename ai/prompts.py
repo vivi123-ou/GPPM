@@ -53,12 +53,21 @@ Rules:
   email "{{$email}}" and a password of at least 8 characters, or log in, then call the endpoint.
   Built-in runtime variables (no data_sets needed): {{$email}} unique email, {{$uuid}}, {{$ts}}, {{$name}}.
   A test checking that an endpoint requires login simply calls it without logging in.
+  A {{$email}} account does not exist until it is registered: a successful-login test must
+  register that email first (same test case), then log in with the same email and password.
+  Do not assume tokens or extra response fields that the API documentation does not show.
 - Only expect a rejection (4xx) when the requirement or the OpenAPI constraints (minLength,
   maxLength, minimum, maximum, required, format) actually define that rule.
 - All data_sets inside ONE test case must share the same "expected" outcome; split valid
   and invalid behaviours into separate test cases (e.g. one "accept" case expecting 200,
   one "reject" case expecting 400).
 - Target: prefer testid when known, otherwise role + accessible name; css is the last resort.
+- To check an array response use json_contains with a JSON array, e.g. [{"id": "x"}] — never
+  object keys like "0".
+- UI messages (errors, confirmations) usually appear in an element listed as role "status" or with
+  an id/class like "...error..."; target that element (css "#id") and assert_text the message.
+  Never invent elements (e.g. role "alert") that are not in the element list. Empty fields marked
+  required are blocked by the browser and show no app message.
 """
 
 TEST_CASES_SYSTEM = f"""You are a senior QA engineer. You turn software requirements
@@ -162,6 +171,8 @@ Rules:
 - Only target elements that appear in the element lists; copy testid/role/name exactly.
 - Start each test case with a goto step to the relative URL of its first page.
 - type must be "ui".
+In app_summary only state facts visible in the pages (titles, texts, links); never guess the
+organisation or product name if it is not shown.
 Respond with a JSON object: {{"app_summary": "Vietnamese one-paragraph summary",
 "test_cases": [TestCase, ...]}}"""
 
@@ -175,7 +186,8 @@ Propose between {min_cases} and {max_cases} test cases. Titles in Vietnamese."""
 AUTOPILOT_LOGIN_OK = """The site requires login (login page: {login_page}) and a test account is available.
 - Use the placeholders "{{{{username}}}}" and "{{{{password}}}}" for it, and give such test cases a data set whose
   values are exactly {{"username": "__USERNAME__", "password": "__PASSWORD__"}} (real values are injected later).
-- Every test of a page behind login must first goto {login_page}, fill the credentials and submit.
+- Every test of a page behind login, and every flow that needs an account (checkout, orders, profile),
+  must first goto {login_page}, fill the credentials and submit.
 - Also add negative login tests with obviously wrong credentials (literal values, not the markers)."""
 
 AUTOPILOT_LOGIN_NONE = """The site shows a login page ({login_page}) and no test account was provided, so pages behind

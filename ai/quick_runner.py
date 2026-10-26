@@ -67,6 +67,13 @@ class _Prefixed:
         return self.session.request(method, self.base + path, **kw)
 
 
+def run_variables(ds) -> dict:
+    """Biến cho một lượt chạy: biến sinh lúc chạy + giá trị data set (giá trị data set cũng được
+    thay biến, vd. {"email": "{{$email}}"} → email duy nhất của lượt này)."""
+    rt = runtime_vars()
+    return {**rt, **{k: substitute(v, rt) for k, v in (ds.values.items() if ds else [])}}
+
+
 def runtime_vars() -> dict:
     """Biến sinh lúc chạy, khác nhau mỗi lượt: {{$email}}, {{$uuid}}, {{$ts}}, {{$name}}."""
     u = uuid.uuid4().hex
@@ -85,7 +92,7 @@ def run_api_test(tc: TestCase, base_url: str, *, before_each: Callable[[], None]
         client = _Prefixed(base_url, timeout)          # phiên mới cho mỗi lượt
         if before_each:
             before_each()
-        variables = {**runtime_vars(), **(dict(ds.values) if ds else {})}
+        variables = run_variables(ds)
         res: dict = {"data_set": ds.name if ds else "-", "expected": ds.expected if ds else "accept",
                      "status": "passed", "error_msg": ""}
         t0 = time.perf_counter()

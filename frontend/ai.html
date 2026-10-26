@@ -37,6 +37,13 @@
     </ol>
   </header>
 
+  <div x-show="mock" x-cloak class="wrap mt-6">
+    <div class="term"><div class="term-body text-[12.5px]">
+      <span class="warn">⚠ chế độ mock (USE_MOCK=1)</span> <span class="dim">— kết quả tạo kịch bản và khám phá là dữ liệu mẫu cố định,
+      không phản ánh website đang nhập. Đặt</span> <span class="cmd">USE_MOCK=0</span> <span class="dim">trong .env và khởi động lại server.</span>
+    </div></div>
+  </div>
+
   <main class="wrap py-12 grid grid-cols-1 xl:grid-cols-12 gap-12">
     <section class="xl:col-span-7 space-y-14">
 
@@ -234,15 +241,20 @@
                       <img :src="r.screenshot" class="w-36 h-24 object-cover object-top block" alt="Ảnh màn hình lúc lỗi">
                     </a>
                   </div>
-                  <template x-if="r.healing">
+                  <template x-if="r.healings?.length">
                     <div class="border border-dashed p-3 text-sm" style="border-color: var(--warn)">
                       <div class="flex flex-wrap items-center gap-3">
-                        <span class="tag tag-solid-warn">tự sửa locator</span>
-                        <span class="mono text-[12px]" x-text="'bước ' + TP.pad(r.healing.step_idx + 1) + ': ' + JSON.stringify(r.healing.old_target) + ' → ' + JSON.stringify(r.healing.new_target)"></span>
+                        <span class="tag tag-solid-warn" x-text="'tự sửa locator · ' + r.healings.length + ' bước'"></span>
+                        <span class="small">Locator mới đã được thử lại và chạy thành công.</span>
                         <button class="btn btn-sm ml-auto" x-show="!r.healApplied" @click="applyHeal(r)">Áp dụng</button>
                         <span class="label" x-show="r.healApplied" style="color: var(--pass)">đã áp dụng</span>
                       </div>
-                      <div class="small mt-1" x-text="r.healing.reason"></div>
+                      <template x-for="h in r.healings" :key="h.step_idx">
+                        <div class="mt-2">
+                          <div class="mono text-[12px]" x-text="'bước ' + TP.pad(h.step_idx + 1) + ': ' + JSON.stringify(h.old_target) + ' → ' + JSON.stringify(h.new_target)"></div>
+                          <div class="small" x-text="h.reason"></div>
+                        </div>
+                      </template>
                     </div>
                   </template>
                   <div x-show="r.pending" class="flex gap-3 items-center text-sm">
@@ -303,7 +315,7 @@ function lab() {
     url: shopUrl, info: null, mode: 'requirement', reqText: '', sample: SHOP_REQ, view: '', count: 0,
     flags: {}, cases: [], reqs: [], picked: [], onlyThis: true, report: null, open: null,
     summary: '', busy: false, busyMsg: '', error: '', toast: '', analyzing: 0,
-    needLogin: false, loginUser: '', loginPass: '',
+    needLogin: false, loginUser: '', loginPass: '', mock: false,
     verdictLabel: {app_bug: 'lỗi ứng dụng', test_broken: 'lỗi kịch bản', flaky: 'không ổn định'},
     verdictCls: {app_bug: 'tag-solid-fail', test_broken: 'tag-solid-warn', flaky: 'tag-solid-ink'},
     flagLabel: {wrong_total: 'Sai tổng tiền', allow_empty_email: 'Bỏ kiểm tra email', ignore_stock: 'Bỏ kiểm tra tồn kho', ui_v2: 'Giao diện v2'},
@@ -314,6 +326,7 @@ function lab() {
     ],
 
     async init() {
+      fetch('/api/ai/config').then(r => r.json()).then(c => this.mock = !!c.use_mock).catch(() => {});
       await Promise.all([this.loadCases(), this.inspect()]);
     },
     stepper() {
@@ -420,7 +433,8 @@ function lab() {
     },
     async applyHeal(r) {
       try {
-        await this.post('/api/ai/heal/apply', {test_case_id: r.test_case_id, step_idx: r.healing.step_idx, new_target: r.healing.new_target});
+        await this.post('/api/ai/heal/apply', {test_case_id: r.test_case_id,
+          fixes: r.healings.map(h => ({step_idx: h.step_idx, new_target: h.new_target}))});
         r.healApplied = true; await this.loadCases(); this.flash('Đã cập nhật locator cho ' + r.test_case_id + '.');
       } catch (e) { this.error = e.message; }
     },

@@ -383,3 +383,12 @@ def test_export_masks_passwords():
     from backend.export import _j
     out = _j({"username": "sv01", "password": "S3cret!", "nested": {"api_token": "abc"}})
     assert "S3cret!" not in out and "abc" not in out and "sv01" in out
+
+
+def test_run_variables_resolve_runtime_placeholders_inside_data_sets():
+    from ai.quick_runner import run_variables, substitute
+    from backend.models import DataSet
+    v = run_variables(DataSet(name="x", values={"email": "{{$email}}", "pw": "Abcdef12"}))
+    assert v["email"].endswith("@example.com") and "{{" not in v["email"]
+    assert substitute({"email": "{{email}}"}, v)["email"] == v["email"]
+    assert run_variables(None)["$email"] != run_variables(None)["$email"]     # mỗi lượt một email mới

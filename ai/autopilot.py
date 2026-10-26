@@ -209,7 +209,9 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
     if spec:
         try:
             test_cases += generate_test_cases(
-                "Kiểm thử các API trong OpenAPI spec: luồng đúng, dữ liệu sai, thiếu trường, giá trị biên.",
+                "Kiểm thử các API trong OpenAPI spec: luồng đúng, dữ liệu sai, thiếu trường, giá trị biên. "
+                "Một số API có thể yêu cầu đăng nhập (401): nếu có API đăng ký/đăng nhập, hãy đăng ký {{$email}} "
+                "và đăng nhập trong cùng kịch bản trước khi gọi các API khác.",
                 openapi_spec=spec, sample_data=fetch_samples(url, spec),
                 min_cases=min_cases, max_cases=max_cases,
                 id_prefix=prefix + "A", provider=llm)

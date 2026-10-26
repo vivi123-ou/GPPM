@@ -206,10 +206,16 @@ def run_tests(body: RunIn):
             "skipped_ui": [], "results": out}
 
 
-class HealApplyIn(BaseModel):
-    test_case_id: str
+class HealFix(BaseModel):
     step_idx: int
     new_target: dict
+
+
+class HealApplyIn(BaseModel):
+    test_case_id: str
+    step_idx: int | None = None        # một bản sửa
+    new_target: dict | None = None
+    fixes: list[HealFix] = []          # hoặc nhiều bản sửa cùng lúc
 
 
 @router.post("/heal/apply")
@@ -217,10 +223,14 @@ def heal_apply(body: HealApplyIn):
     """Duyệt bản sửa self-healing: ghi locator mới vào bước tương ứng (tăng version)."""
     from backend.models import Target
     cases = _load_cases([body.test_case_id])
-    if not cases or not 0 <= body.step_idx < len(cases[0].steps):
-        raise HTTPException(404, "Không thấy kịch bản hoặc bước")
+    if not cases:
+        raise HTTPException(404, "Không thấy kịch bản")
     tc = cases[0]
-    tc.steps[body.step_idx].target = Target.model_validate(body.new_target)
+    fixes = body.fixes or [HealFix(step_idx=body.step_idx, new_target=body.new_target or {})]
+    for f in fixes:
+        if not 0 <= f.step_idx < len(tc.steps):
+            raise HTTPException(404, f"Không thấy bước {f.step_idx}")
+        tc.steps[f.step_idx].target = Target.model_validate(f.new_target)
     conn = get_conn()
     conn.execute("UPDATE test_cases SET json=?, version=version+1 WHERE id=?", (tc.model_dump_json(), tc.id))
     conn.commit()

@@ -58,7 +58,9 @@ def generate_ui_steps(goal: str, accessibility_tree: str, url: str = "/") -> lis
 
 def autopilot(url: str) -> dict:
     if USE_MOCK:
-        return {"app_summary": "(mock) Demo Shop", "openapi_found": True, "pages": [],
+        return {"app_summary": f"Chế độ mock (USE_MOCK=1): đây là dữ liệu mẫu cố định, chưa phân tích {url}. "
+                               "Đặt USE_MOCK=0 trong .env và khởi động lại server để phân tích website thật.",
+                "openapi_found": False, "pages": [],
                 "test_cases": [TestCase.model_validate(x) for x in _mock("test_cases.json")], "warnings": []}
     from ai.autopilot import autopilot as real
     return real(url)

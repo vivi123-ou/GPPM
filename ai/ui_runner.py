@@ -15,7 +15,7 @@ import base64
 import time
 from urllib.parse import urljoin, urlparse
 
-from ai.quick_runner import runtime_vars, substitute
+from ai.quick_runner import run_variables, substitute
 from backend.models import Step, Target, TestCase
 
 STEP_TIMEOUT_MS = 6000
@@ -164,7 +164,7 @@ def run_ui_tests(cases: list[TestCase], base_url: str, *, heal: bool = True, hea
 
 
 def _run_one(browser, tc: TestCase, ds, base: str, heal: bool) -> dict:
-    variables = {**runtime_vars(), **(dict(ds.values) if ds else {})}
+    variables = run_variables(ds)
     res: dict = {"data_set": ds.name if ds else "-", "expected": ds.expected if ds else "accept",
                  "status": "passed", "error_msg": "", "steps": []}
     ctx = browser.new_context(viewport={"width": 1280, "height": 800}, locale="vi-VN")
@@ -181,7 +181,7 @@ def _run_one(browser, tc: TestCase, ds, base: str, heal: bool) -> dict:
             except LocatorNotFound as e:
                 fixed = _try_heal(page, raw, s, base) if heal else None
                 if fixed:
-                    res["healing"] = {**fixed, "step_idx": i}
+                    res.setdefault("healings", []).append({**fixed, "step_idx": i})
                     res["steps"].append({"i": i, "action": s.action, "status": "healed", "detail": fixed["reason"]})
                     continue      # chạy tiếp các bước sau bằng locator đã sửa
                 res["steps"].append({"i": i, "action": s.action, "status": "failed", "detail": str(e)})
@@ -192,7 +192,7 @@ def _run_one(browser, tc: TestCase, ds, base: str, heal: bool) -> dict:
                 res["steps"].append({"i": i, "action": s.action, "status": "failed", "detail": msg})
                 res.update(status="failed", error_msg=msg)
                 break
-        if res.get("healing") and res["status"] == "passed":
+        if res.get("healings") and res["status"] == "passed":
             # Chạy được nhờ locator mới → vẫn báo "không đạt" để người dùng duyệt bản sửa
             res.update(status="failed", error_msg="Locator cũ không còn khớp; locator đề xuất đã chạy thành công.")
         if res["status"] == "failed":

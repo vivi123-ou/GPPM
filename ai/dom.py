@@ -50,15 +50,27 @@ class Element:
             parts.append(f'"{self.name}"')
         if self.testid:
             parts.append(f"testid={self.testid}")
+        elif self.id:
+            parts.append(f"css=#{self.id}")
         for k in ("type", "placeholder", "href", "name"):
             if self.attrs.get(k):
                 parts.append(f"{k}={self.attrs[k]}")
         return " ".join(parts)
 
 
+_MSG_HINT = re.compile(r"error|message|alert|notice|toast|feedback|invalid", re.I)
+
+
+def _is_message_region(attrs: dict) -> bool:
+    """Vùng hiện thông báo (lỗi đăng nhập, xác nhận…): thường rỗng lúc tải trang nên cần chỉ cho AI biết."""
+    return bool(attrs.get("aria-live") or _MSG_HINT.search(attrs.get("id", "") + " " + attrs.get("class", "")))
+
+
 def _implicit_role(tag: str, attrs: dict) -> str | None:
     if attrs.get("role"):
         return attrs["role"]
+    if attrs.get("aria-live"):
+        return "status"
     if tag == "button":
         return "button"
     if tag == "a":
@@ -91,7 +103,7 @@ class _Parser(HTMLParser):
             return
         el = None
         if (tag in _INTERACTIVE or tag in _TEXT_ROLES_TAGS or "data-testid" in attrs or "data-test" in attrs or "data-qa" in attrs
-                or attrs.get("role")):
+                or attrs.get("role") or _is_message_region(attrs)):
             if attrs.get("type", "").lower() != "hidden":
                 el = Element(tag=tag, role=_implicit_role(tag, attrs),
                              testid=attrs.get("data-testid") or attrs.get("data-test") or attrs.get("data-qa") or None,
