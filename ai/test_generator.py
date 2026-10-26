@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 
 from pydantic import ValidationError
@@ -15,10 +16,12 @@ from ai.llm_provider import LLMProvider, get_provider
 from backend.models import TestCase
 
 _PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+DEFAULT_EXCLUDE = "/api/shop/bugs,/api/shop/reset,/api/requirements,/api/test-cases,/api/runs"
 
 
 def generate_test_cases(requirement_text: str, openapi_spec: dict | str | None = None,
-                        ui_elements: str | None = None, *, min_cases: int = 4,
+                        ui_elements: str | None = None, sample_data: str | None = None,
+                        *, min_cases: int = 4,
                         max_cases: int = 10, id_prefix: str | None = None,
                         provider: LLMProvider | None = None) -> list[TestCase]:
     """Sinh test case. openapi_spec / ui_elements là ngữ cảnh tuỳ chọn giúp AI dùng
@@ -26,7 +29,7 @@ def generate_test_cases(requirement_text: str, openapi_spec: dict | str | None =
     llm = provider or get_provider()
     user = prompts.TEST_CASES_USER.format(
         requirement=requirement_text.strip(),
-        context=_build_context(openapi_spec, ui_elements),
+        context=_build_context(openapi_spec, ui_elements, sample_data),
         min_cases=min_cases, max_cases=max_cases)
     raw = unwrap_list(llm.complete_json(prompts.TEST_CASES_SYSTEM, user), "test_cases")
 
@@ -50,13 +53,27 @@ def generate_test_cases(requirement_text: str, openapi_spec: dict | str | None =
     return cases
 
 
-def _build_context(openapi_spec, ui_elements) -> str:
+def _build_context(openapi_spec, ui_elements, sample_data=None) -> str:
     parts = []
     if openapi_spec:
         parts.append("OpenAPI spec of the system under test (summarised):\n" + summarize_openapi(openapi_spec))
+    if sample_data:
+        parts.append("Real data currently in the system (use these existing IDs/values in tests):\n"
+                     + sample_data[:4000])
     if ui_elements:
         parts.append("UI elements available:\n" + ui_elements[:6000])
     return "\n\n".join(parts)
+
+
+def excluded_paths() -> list[str]:
+    """API không được sinh test: API quản trị của Demo Shop (bật bug, reset) và API của
+    chính TestPilot. Ghi đè bằng AI_EXCLUDE_PATHS="/a,/b"."""
+    raw = os.getenv("AI_EXCLUDE_PATHS", DEFAULT_EXCLUDE)
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+def is_excluded(path: str) -> bool:
+    return any(path.startswith(p) for p in excluded_paths())
 
 
 def summarize_openapi(spec: dict | str, limit: int = 8000) -> str:
@@ -69,6 +86,8 @@ def summarize_openapi(spec: dict | str, limit: int = 8000) -> str:
     lines = []
     schemas = spec.get("components", {}).get("schemas", {})
     for path, ops in spec.get("paths", {}).items():
+        if is_excluded(path):
+            continue
         for method, op in ops.items():
             if method.lower() not in ("get", "post", "put", "patch", "delete"):
                 continue
@@ -101,8 +120,12 @@ def _short(prop: dict, schemas: dict, depth: int):
     prop = _resolve(prop, schemas, depth + 1)
     if not isinstance(prop, dict):
         return prop
-    keep = ("type", "format", "minLength", "maxLength", "minimum", "maximum", "enum", "pattern")
-    return {k: v for k, v in prop.items() if k in keep} or prop
+    keep = ("type", "format", "minLength", "maxLength", "minimum", "maximum", "enum", "pattern",
+            "minItems", "maxItems", "properties", "required")
+    out = {k: v for k, v in prop.items() if k in keep} or prop
+    if isinstance(prop.get("items"), dict):     # mảng: mô tả luôn phần tử bên trong
+        out["items"] = _short(prop["items"], schemas, depth + 1)
+    return out
 
 
 def _validate_all(raw: list) -> tuple[list[TestCase], list[str]]:
@@ -133,7 +156,8 @@ def normalize(item: dict) -> dict:
     else:
         item["priority"] = item["priority"].lower()
 
-    allowed_step_keys = {"method", "path", "headers", "body", "expect", "action", "url", "target", "value"}
+    allowed_step_keys = {"method", "path", "headers", "body", "expect", "save",
+                         "action", "url", "target", "value"}
     clean_steps = []
     for s in steps:
         s = {k: v for k, v in s.items() if k in allowed_step_keys and v is not None}
@@ -182,7 +206,15 @@ def _check_semantics(tc: TestCase) -> None:
                 raise ValueError(f"bước {i}: goto cần url")
             if s.action not in ("goto", "press") and not (s.target and any(s.target.model_dump().values())):
                 raise ValueError(f"bước {i}: {s.action} cần target")
-    used = set(find_placeholders(tc))
+    saved: set[str] = set()
+    for i, s in enumerate(tc.steps):
+        step_vars = set(_PLACEHOLDER.findall(json.dumps(s.model_dump(exclude_none=True, exclude={"save"}),
+                                                        ensure_ascii=False)))
+        later = set().union(*[(t.save or {}).keys() for t in tc.steps[i:]])
+        if step_vars & later - saved:
+            raise ValueError(f"bước {i}: dùng biến {sorted(step_vars & later - saved)} trước khi save")
+        saved |= set((s.save or {}).keys())
+    used = set(find_placeholders(tc)) - saved
     if used and tc.data_sets:
         for d in tc.data_sets:
             missing = used - set(d.values)

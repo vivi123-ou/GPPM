@@ -17,7 +17,7 @@ from ai import prompts
 from ai.dom import extract_elements, format_elements
 from ai.json_utils import unwrap_list
 from ai.llm_provider import LLMProvider, get_provider
-from ai.test_generator import _prefix_for, _validate_all, generate_test_cases
+from ai.test_generator import _prefix_for, _validate_all, generate_test_cases, is_excluded
 from backend.models import TestCase
 
 OPENAPI_PATHS = ("/openapi.json", "/api/openapi.json", "/swagger.json", "/api-docs", "/v3/api-docs")
@@ -34,6 +34,25 @@ def find_openapi(base_url: str, timeout: float = 5.0) -> dict | None:
         except (httpx.HTTPError, ValueError):
             continue
     return None
+
+
+def fetch_samples(base_url: str, spec: dict, per_endpoint: int = 1200, timeout: float = 5.0) -> str:
+    """Gọi các API GET không tham số (vd. danh sách sản phẩm) để AI biết ID/giá trị có thật."""
+    import json
+    out = []
+    for path, ops in spec.get("paths", {}).items():
+        if "get" not in ops or "{" in path or is_excluded(path):
+            continue
+        try:
+            r = httpx.get(urljoin(base_url, path), timeout=timeout)
+            if r.status_code == 200 and "json" in r.headers.get("content-type", ""):
+                data = r.json()
+                if isinstance(data, list):
+                    data = data[:5]
+                out.append(f"GET {path} ->\n{json.dumps(data, ensure_ascii=False)[:per_endpoint]}")
+        except (httpx.HTTPError, ValueError):
+            continue
+    return "\n".join(out)
 
 
 def explore(start_url: str, max_pages: int = 6, timeout_ms: int = 10000) -> list[dict]:
@@ -95,7 +114,8 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
         try:
             test_cases += generate_test_cases(
                 "Kiểm thử các API trong OpenAPI spec: luồng đúng, dữ liệu sai, thiếu trường, giá trị biên.",
-                openapi_spec=spec, min_cases=min_cases, max_cases=max_cases,
+                openapi_spec=spec, sample_data=fetch_samples(url, spec),
+                min_cases=min_cases, max_cases=max_cases,
                 id_prefix=prefix + "A", provider=llm)
         except Exception:
             pass

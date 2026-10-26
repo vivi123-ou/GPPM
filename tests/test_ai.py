@@ -198,3 +198,26 @@ def test_get_provider_errors(monkeypatch):
         get_provider("groq")
     with pytest.raises(LLMError):
         get_provider("khong-co")
+
+
+def test_saved_variables_count_as_defined():
+    fake = FakeProvider({"test_cases": [{"title": "Xem đơn", "type": "api", "steps": [
+        {"method": "POST", "path": "/api/shop/checkout", "body": {"items": []},
+         "expect": {"status": 201}, "save": {"order_id": "order_id"}},
+        {"method": "GET", "path": "/api/shop/orders/{{order_id}}", "expect": {"status": 200}}]}]})
+    cases = test_generator.generate_test_cases("x", provider=fake)
+    assert cases[0].steps[0].save == {"order_id": "order_id"}
+    # dùng biến trước khi save → lỗi
+    bad = {"test_cases": [{"title": "Sai thứ tự", "type": "api", "steps": [
+        {"method": "GET", "path": "/o/{{oid}}", "expect": {"status": 200}},
+        {"method": "POST", "path": "/o", "save": {"oid": "id"}}]}]}
+    with pytest.raises(ValueError):
+        test_generator.generate_test_cases("x", provider=FakeProvider(bad, bad))
+
+
+def test_admin_paths_excluded_from_openapi():
+    spec = {"paths": {"/api/shop/products": {"get": {"responses": {"200": {}}}},
+                      "/api/shop/bugs/{flag}": {"put": {"responses": {"200": {}}}},
+                      "/api/shop/reset": {"post": {"responses": {"200": {}}}}}}
+    s = test_generator.summarize_openapi(spec)
+    assert "/api/shop/products" in s and "bugs" not in s and "reset" not in s

@@ -18,10 +18,11 @@ def generate_test_cases(requirement_text: str) -> list[TestCase]:
     if USE_MOCK:
         raw = _mock("test_cases.json")
         return [TestCase.model_validate(x) for x in raw]   # validate để bắt lệch schema sớm
-    from ai.autopilot import find_openapi
+    from ai.autopilot import fetch_samples, find_openapi
     from ai.test_generator import generate_test_cases as real
     spec = find_openapi(DEMO_SHOP_URL) if DEMO_SHOP_URL else None
-    return real(requirement_text, openapi_spec=spec)
+    samples = fetch_samples(DEMO_SHOP_URL, spec) if spec else None
+    return real(requirement_text, openapi_spec=spec, sample_data=samples)
 
 def generate_test_data(test_case: TestCase) -> list[DataSet]:
     if USE_MOCK:

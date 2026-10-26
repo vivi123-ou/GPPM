@@ -19,6 +19,9 @@ class Step(BaseModel):
     body: Optional[dict[str, Any]] = None
     # API: {"status":400,"json_contains":{...}}  |  UI assert: chuỗi mong đợi
     expect: Optional[Any] = None
+    # API: lưu giá trị từ response để bước sau dùng, {"ten_bien": "duong.dan.json"}
+    # vd {"order_id": "order_id"} → bước sau dùng "{{order_id}}"
+    save: Optional[dict[str, str]] = None
     # --- bước UI ---
     action: Optional[Action] = None
     url: Optional[str] = None

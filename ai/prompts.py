@@ -22,7 +22,9 @@ TestCase JSON schema (MUST follow exactly, no extra keys):
 API Step:
   {"method": "GET|POST|PUT|PATCH|DELETE", "path": "/api/...",
    "headers": {"...": "..."} (optional), "body": {...} (optional, may use "{{var}}"),
-   "expect": {"status": 200, "json_contains": {...optional subset of response JSON...}}}
+   "expect": {"status": 200, "json_contains": {...optional subset of response JSON...}},
+   "save": {"var_name": "field.path"} (optional: store a value of the JSON response,
+            e.g. {"order_id": "order_id"}, later steps use "{{order_id}}")}
 
 UI Step:
   {"action": "goto|click|fill|select|press|wait_for|assert_text|assert_visible",
@@ -32,7 +34,15 @@ UI Step:
    "expect": "expected text" (assert_text only)}
 
 Rules:
-- Placeholders "{{name}}" in body/value must match keys in data_sets[].values.
+- Placeholders "{{name}}" in body/value/path/expect must match keys in data_sets[].values
+  or a variable saved by an earlier step. A value that is exactly "{{name}}" keeps the type
+  of the data value (number stays number).
+- Never invent IDs. Use IDs from the "real data" section, or create the resource in an
+  earlier step and capture its ID with "save" (e.g. POST an order, then GET /orders/{{order_id}}).
+- When the requirement states a business rule on a value (totals, prices, stock, messages),
+  assert it with expect.json_contains. Compute expected numbers from the real data; if the
+  value depends on the data set, put it in data_sets values (e.g. "expected_total") and
+  assert "{{expected_total}}".
 - All data_sets inside ONE test case must share the same "expected" outcome; split valid
   and invalid behaviours into separate test cases (e.g. one "accept" case expecting 200,
   one "reject" case expecting 400).
