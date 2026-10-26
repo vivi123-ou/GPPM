@@ -23,16 +23,24 @@ _FLAKY_HINTS = ("timeout", "timed out", "econnreset", "econnrefused", "connectio
 _ASSERT_HINTS = ("expected", "assert", "status", "mismatch", "khác", "mong đợi")
 
 
-def heuristic(test_case: TestCase | dict, result: dict) -> dict:
+def heuristic(test_case: TestCase | dict, result: dict, api_paths: list[str] | None = None) -> dict:
     """Đoán nhanh dựa trên thông báo lỗi và lịch sử chạy."""
     err = _error_text(result).lower()
     tc_type = test_case.type if isinstance(test_case, TestCase) else test_case.get("type")
+
+    path = ((result.get("request") or {}).get("path") or "").split("?")[0]
+    if api_paths and path and result.get("actual_status") in (404, 405) \
+            and not any(_path_match(p, path) for p in api_paths):
+        return _v("test_broken", 0.85, f"Test gọi {path} nhưng API này không có trong OpenAPI của hệ thống.")
 
     if result.get("passed_on_retry") or result.get("retry_status") == "passed":
         return _v("flaky", 0.85, "Test pass khi chạy lại → kết quả không ổn định.")
     history = result.get("history") or []
     if len(set(history[-5:])) > 1 and "passed" in history and "failed" in history:
         return _v("flaky", 0.6, "Lịch sử chạy gần đây lúc pass lúc fail.")
+    if "để lưu vào" in err:
+        return _v("test_broken", 0.75, "Test đọc sai trường trong response (bước 'save'); "
+                                       "API vẫn trả kết quả nhưng tên trường khác với test giả định.")
     if tc_type == "ui" and any(h in err for h in _LOCATOR_HINTS):
         return _v("test_broken", 0.7, "Không tìm thấy phần tử theo locator → có thể giao diện đã đổi.")
     if any(h in err for h in _FLAKY_HINTS) and not any(h in err for h in ("expected", "assert")):
@@ -43,14 +51,17 @@ def heuristic(test_case: TestCase | dict, result: dict) -> dict:
 
 
 def classify_failure(test_case: TestCase | dict, result: dict, requirement_text: str = "",
-                     provider: LLMProvider | None = None) -> dict:
+                     provider: LLMProvider | None = None, api_paths: list[str] | None = None) -> dict:
     """result: dict tuỳ ý từ Runner, nên có error_msg, step lỗi, expected/actual,
-    response body, history... Càng nhiều dữ kiện AI giải thích càng đúng."""
-    hint = heuristic(test_case, result)
+    response body, history... Càng nhiều dữ kiện AI giải thích càng đúng.
+    api_paths: các path có thật (từ OpenAPI) để nhận ra test gọi sai API."""
+    hint = heuristic(test_case, result, api_paths)
     tc_json = (test_case.model_dump_json(exclude_none=True) if isinstance(test_case, TestCase)
                else json.dumps(test_case, ensure_ascii=False, default=str))
     if requirement_text:
         tc_json = f"Requirement: {requirement_text}\n{tc_json}"
+    if api_paths:
+        tc_json += "\n\nAPI paths that really exist in the system: " + ", ".join(api_paths)
     try:
         llm = provider or get_provider()
         data = llm.complete_json(prompts.CLASSIFY_SYSTEM, prompts.CLASSIFY_USER.format(
@@ -67,6 +78,12 @@ def classify_failure(test_case: TestCase | dict, result: dict, requirement_text:
                 "source": "ai"}
     except Exception as e:
         return {**hint, "source": "heuristic", "ai_error": str(e)[:200]}
+
+
+def _path_match(template: str, path: str) -> bool:
+    """/api/orders/{id} khớp /api/orders/5."""
+    t, p = template.strip("/").split("/"), path.strip("/").split("/")
+    return len(t) == len(p) and all(a == b or (a.startswith("{") and a.endswith("}")) for a, b in zip(t, p))
 
 
 def _v(verdict, conf, why):

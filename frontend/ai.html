@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TestPilot AI Lab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800" x-data="lab()" x-init="init()">
+  <header class="bg-slate-900 text-white px-6 py-3 flex items-center gap-4">
+    <span class="text-lg font-semibold">✈️ TestPilot · AI Lab</span>
+    <a href="/" class="text-sm text-slate-300 hover:text-white">← Dashboard</a>
+    <span class="ml-auto text-xs text-slate-300" x-text="cfg.use_mock ? 'Chế độ MOCK (USE_MOCK=1)' :
+      (cfg.provider ? ('AI: ' + cfg.provider + ' / ' + cfg.model) : ('AI lỗi: ' + (cfg.provider_error || '...')))"></span>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <section class="space-y-4">
+      <!-- 1. Sinh test từ yêu cầu -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="font-semibold mb-2">1. AI viết test case từ yêu cầu</h2>
+        <textarea x-model="reqText" rows="5" class="w-full border rounded p-2 text-sm"
+          placeholder="VD: Đặt hàng hợp lệ trả 201, total = tổng giá × số lượng. Email sai định dạng trả 422..."></textarea>
+        <div class="flex gap-2 mt-2">
+          <button @click="generate()" :disabled="busy" class="bg-indigo-600 text-white px-4 py-2 rounded disabled:opacity-50">Sinh test case</button>
+          <button @click="reqText = sample" class="border px-3 py-2 rounded text-sm">Dùng yêu cầu mẫu</button>
+          <button @click="autopilot()" :disabled="busy" class="ml-auto bg-fuchsia-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            title="AI tự khám phá Demo Shop và sinh test">🚀 Autopilot</button>
+        </div>
+        <p x-show="autoSummary" class="text-xs text-slate-600 mt-2" x-text="autoSummary"></p>
+      </div>
+
+      <!-- 2. Bug flags -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="font-semibold mb-2">2. Bug flags của Demo Shop</h2>
+        <div class="flex flex-wrap gap-3 text-sm">
+          <template x-for="(on, name) in flags" :key="name">
+            <label class="flex items-center gap-1 border rounded px-2 py-1" :class="on && 'bg-red-50 border-red-300'">
+              <input type="checkbox" :checked="on" @change="toggle(name, $event.target.checked)"> <span x-text="name"></span>
+            </label>
+          </template>
+          <button @click="resetShop()" class="border px-3 py-1 rounded">Reset shop</button>
+        </div>
+      </div>
+
+      <!-- 3. Danh sách + chạy -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center mb-2">
+          <h2 class="font-semibold">3. Test case (<span x-text="cases.length"></span>)</h2>
+          <button @click="run()" :disabled="busy" class="ml-auto bg-emerald-600 text-white px-4 py-2 rounded disabled:opacity-50">▶ Chạy test API + AI phân tích</button>
+        </div>
+        <ul class="divide-y max-h-80 overflow-auto text-sm">
+          <template x-for="c in cases" :key="c.id">
+            <li class="py-1 flex items-center gap-2">
+              <input type="checkbox" :value="c.id" x-model="picked">
+              <span class="font-mono text-xs text-slate-500 whitespace-nowrap" x-text="c.id"></span>
+              <span class="text-xs px-1 rounded" :class="c.type === 'api' ? 'bg-sky-100' : 'bg-amber-100'" x-text="c.type"></span>
+              <span class="truncate" x-text="c.title"></span>
+              <button @click="genData(c.id)" class="ml-auto text-xs text-indigo-600 shrink-0" title="Sinh dữ liệu EP/BVA">+ dữ liệu</button>
+            </li>
+          </template>
+        </ul>
+        <p class="text-xs text-slate-500 mt-1">Không tích ô nào = chạy tất cả test API.</p>
+      </div>
+      <p x-show="busy" class="text-indigo-600 text-sm" x-text="busyMsg"></p>
+      <p x-show="error" class="text-red-600 text-sm" x-text="error"></p>
+    </section>
+
+    <section class="space-y-4">
+      <!-- 4. Kết quả -->
+      <div class="bg-white rounded-lg shadow p-4" x-show="report">
+        <h2 class="font-semibold mb-2">4. Kết quả:
+          <span class="text-emerald-600" x-text="report?.passed + ' pass'"></span> ·
+          <span class="text-red-600" x-text="report?.failed + ' fail'"></span></h2>
+        <ul class="space-y-2 max-h-[32rem] overflow-auto text-sm">
+          <template x-for="(r, i) in report?.results || []" :key="i">
+            <li class="border rounded p-2" :class="r.status === 'passed' ? 'border-emerald-200' : 'border-red-300 bg-red-50/40'">
+              <div class="flex gap-2 items-center">
+                <span x-text="r.status === 'passed' ? '✅' : '❌'"></span>
+                <span class="font-mono text-xs whitespace-nowrap" x-text="r.test_case_id"></span>
+                <span class="truncate" x-text="r.title"></span>
+                <span class="ml-auto text-xs text-slate-500 shrink-0" x-text="r.data_set"></span>
+              </div>
+              <template x-if="r.status === 'failed'">
+                <div class="mt-1 text-xs space-y-1">
+                  <div class="font-mono text-red-700" x-text="r.error_msg"></div>
+                  <template x-if="r.ai_analysis">
+                    <div>
+                      <span class="px-2 py-0.5 rounded text-white text-xs"
+                        :class="{'bg-red-600': r.ai_analysis.verdict === 'app_bug', 'bg-amber-500': r.ai_analysis.verdict === 'test_broken', 'bg-slate-500': r.ai_analysis.verdict === 'flaky'}"
+                        x-text="verdictLabel[r.ai_analysis.verdict] || r.ai_analysis.verdict"></span>
+                      <span class="text-slate-700" x-text="r.ai_analysis.explanation"></span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </li>
+          </template>
+        </ul>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-2">
+        <div class="flex items-center px-2 pb-2 text-sm"><b>Demo Shop</b>
+          <button class="ml-auto text-xs text-indigo-600" @click="$refs.shop.src = '/shop'">tải lại</button></div>
+        <iframe x-ref="shop" src="/shop" class="w-full h-[520px] border rounded"></iframe>
+      </div>
+    </section>
+  </main>
+
+<script>
+function lab() {
+  return {
+    cfg: {}, flags: {}, cases: [], picked: [], report: null,
+    reqText: '', autoSummary: '', busy: false, busyMsg: '', error: '',
+    verdictLabel: {app_bug: 'Lỗi ứng dụng', test_broken: 'Test hỏng', flaky: 'Không ổn định'},
+    sample: `Khách hàng đặt mua điện thoại tại TVT MOBILE.
+- Đặt hàng hợp lệ trả 201, tổng tiền (total) = tổng (giá × số lượng) của các sản phẩm.
+- Email không hợp lệ (rỗng, thiếu @, thiếu tên miền) phải bị từ chối với mã 422.
+- Số lượng mỗi sản phẩm từ 1 đến 20; ngoài khoảng này bị từ chối 422.
+- Sản phẩm không tồn tại trả 404. Đặt quá số lượng tồn kho trả 409.
+- Xem lại đơn hàng theo mã đơn.`,
+
+    async init() {
+      this.cfg = await (await fetch('/api/ai/config')).json();
+      await Promise.all([this.loadCases(), this.loadFlags()]);
+    },
+    async loadCases() { this.cases = await (await fetch('/api/test-cases')).json(); },
+    async loadFlags() { this.flags = await (await fetch('/api/shop/bugs')).json(); },
+    async call(msg, fn) {
+      this.busy = true; this.busyMsg = msg; this.error = '';
+      try { await fn(); } catch (e) { this.error = e.message; }
+      this.busy = false;
+    },
+    async post(url, body) {
+      const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+      const data = await r.json();
+      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+      return data;
+    },
+    generate() {
+      return this.call('AI đang viết test case (~30 giây)...', async () => {
+        await this.post('/api/requirements', {text: this.reqText});
+        await this.loadCases();
+      });
+    },
+    autopilot() {
+      return this.call('Autopilot đang khám phá Demo Shop và viết test (~1 phút)...', async () => {
+        const r = await this.post('/api/ai/autopilot', {});
+        this.autoSummary = '🚀 ' + r.app_summary + ` (${r.test_cases.length} test case)`;
+        await this.loadCases();
+      });
+    },
+    genData(id) {
+      return this.call('AI đang sinh dữ liệu EP/BVA cho ' + id + '...', async () => {
+        await this.post('/api/ai/test-data/' + id + '?save=true');
+        await this.loadCases();
+      });
+    },
+    run() {
+      return this.call('Đang chạy test và AI phân tích lỗi...', async () => {
+        this.report = await this.post('/api/ai/run', {test_case_ids: this.picked.length ? this.picked : null});
+        this.$refs.shop.src = '/shop';
+      });
+    },
+    async toggle(name, on) {
+      await fetch('/api/shop/bugs/' + name, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: on})});
+      await this.loadFlags(); this.$refs.shop.src = '/shop';
+    },
+    async resetShop() { await this.post('/api/shop/reset'); await this.loadFlags(); this.$refs.shop.src = '/shop'; }
+  }
+}
+</script>
+</body>
+</html>

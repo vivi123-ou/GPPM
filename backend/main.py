@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend import ai_client
+from backend.ai_routes import router as ai_router
 from backend.db import get_conn, init_db
 from backend.models import TestCase
 from ShopDemo import router as demo_shop_router
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TestPilot", lifespan=lifespan)
 app.include_router(demo_shop_router)
+app.include_router(ai_router)
 app.mount(
     "/shop-assets",
     StaticFiles(directory=Path(__file__).resolve().parent.parent / "ShopDemo" / "static"),

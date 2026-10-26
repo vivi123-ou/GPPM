@@ -167,11 +167,38 @@ PROVIDERS: dict[str, type[LLMProvider]] = {
     "ollama": OllamaProvider,
 }
 
+class FallbackProvider(LLMProvider):
+    """Gọi lần lượt từng provider; cái đầu lỗi (hết quota 429, mất mạng...) thì chuyển cái sau."""
+
+    def __init__(self, providers: list[LLMProvider]):
+        super().__init__(model=providers[0].model, max_retries=0)
+        self.providers = providers
+        self.name = providers[0].name
+        self.last_used: LLMProvider = providers[0]
+
+    def _complete(self, system, user, json_mode):   # pragma: no cover - complete() được ghi đè
+        raise NotImplementedError
+
+    def complete(self, system: str, user: str, json_mode: bool = False) -> str:
+        errors = []
+        for p in self.providers:
+            try:
+                text = p.complete(system, user, json_mode)
+                self.last_used = p
+                return text
+            except LLMError as e:
+                errors.append(f"{p.name}: {e}")
+        raise LLMError(" | ".join(errors))
+
+
 _default: LLMProvider | None = None
 
 
 def get_provider(name: str | None = None, **kw) -> LLMProvider:
-    """Trả về provider theo tên hoặc LLM_PROVIDER. Provider mặc định được cache."""
+    """Trả về provider theo tên hoặc LLM_PROVIDER. Provider mặc định được cache.
+
+    LLM_FALLBACK="groq,openai" (mặc định): provider dự phòng khi provider chính lỗi;
+    provider nào chưa có khoá thì tự bỏ qua. Đặt LLM_FALLBACK= (rỗng) để tắt."""
     global _default
     if name is None and not kw and _default is not None:
         return _default
@@ -180,7 +207,15 @@ def get_provider(name: str | None = None, **kw) -> LLMProvider:
         raise LLMError(f"LLM_PROVIDER không hợp lệ: {key} (chọn: {', '.join(PROVIDERS)})")
     p = PROVIDERS[key](**kw)
     if name is None and not kw:
-        _default = p
+        backups = []
+        for b in os.getenv("LLM_FALLBACK", "groq,openai").split(","):
+            b = b.strip().lower()
+            if b and b != key and b in PROVIDERS:
+                try:   # LLM_MODEL chỉ áp dụng cho provider chính
+                    backups.append(PROVIDERS[b](model=PROVIDERS[b].default_model))
+                except LLMError:
+                    pass
+        _default = p = FallbackProvider([p, *backups]) if backups else p
     return p
 
 

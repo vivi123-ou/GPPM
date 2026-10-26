@@ -221,3 +221,27 @@ def test_admin_paths_excluded_from_openapi():
                       "/api/shop/reset": {"post": {"responses": {"200": {}}}}}}
     s = test_generator.summarize_openapi(spec)
     assert "/api/shop/products" in s and "bugs" not in s and "reset" not in s
+
+
+def test_classifier_detects_unknown_api_path():
+    res = {"request": {"path": "/api/login"}, "actual_status": 405, "error_msg": "expected status 200, got 405"}
+    r = classifier.heuristic({"type": "api"}, res, ["/api/shop/products", "/api/shop/orders/{order_id}"])
+    assert r["verdict"] == "test_broken"
+    res2 = {"request": {"path": "/api/shop/orders/99"}, "actual_status": 404, "error_msg": "expected status 200, got 404"}
+    assert classifier.heuristic({"type": "api"}, res2, ["/api/shop/orders/{order_id}"])["verdict"] == "app_bug"
+
+
+def test_quick_runner_substitute_and_contains():
+    from ai.quick_runner import json_contains, substitute
+    assert substitute({"q": "{{n}}", "s": "id-{{n}}"}, {"n": 3}) == {"q": 3, "s": "id-3"}
+    assert json_contains({"total": 100, "items": [{"id": "a"}]}, {"total": 100.0, "items": [{"id": "a", "x": 1}]})
+    assert not json_contains({"total": 100}, {"total": 200})
+
+
+def test_fallback_provider_switches_on_error():
+    from ai.llm_provider import FallbackProvider
+    first = FakeProvider(LLMError("429 hết quota"))
+    second = FakeProvider({"ok": True})
+    second.name = "backup"
+    fb = FallbackProvider([first, second])
+    assert fb.complete_json("s", "u") == {"ok": True} and fb.last_used is second

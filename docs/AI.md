@@ -57,7 +57,12 @@ ai_client.find_affected_tests(old_text, new_text, test_cases) -> {"affected": [.
 Quy ước Runner cần biết:
 
 - **ID test case** có dạng `TC-<hash 4 ký tự>-01`, khác nhau giữa các yêu cầu (vì `test_cases.id` là PRIMARY KEY).
-- **Placeholder** `{{email}}` trong `body`/`value` được thay bằng `data_sets[].values`; mỗi data set là một lần chạy.
+- **Placeholder** `{{email}}` trong `path`/`body`/`value`/`expect` được thay bằng `data_sets[].values`; mỗi data set là một lần chạy.
+  Nếu cả giá trị chỉ là `"{{quantity}}"` thì giữ nguyên kiểu (số vẫn là số).
+- **`save`** (trường mới, tuỳ chọn, ở bước API): `{"order_id": "order_id"}` lấy giá trị từ JSON response lưu vào biến;
+  bước sau dùng `{{order_id}}`. Đường dẫn lồng nhau dùng dấu chấm: `items.0.id`.
+- **`json_contains`**: response phải chứa tập con này (so sánh số không phân biệt int/float).
+- Bản cài đặt tham khảo của các quy ước trên: `ai/quick_runner.py`.
 - Trong một test case do `generate_test_cases` sinh, mọi data set có cùng `expected`, nên `expect` của bước áp dụng chung.
 - Data set từ `generate_test_data` có thể lẫn `accept` và `reject`. Gợi ý cho Runner: với `reject`, coi là pass nếu API trả 4xx.
 - **classify_failure**: `result` càng đầy đủ càng tốt. Các khoá AI hiểu: `error_msg`, `steps`/`step_results` (mỗi bước có `status`, `detail`),
