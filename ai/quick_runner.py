@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import time
-from contextlib import nullcontext
+import uuid
 from typing import Callable
 
 import httpx
@@ -17,7 +17,7 @@ import httpx
 from ai.http import client as _http
 from backend.models import TestCase
 
-_PH = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+_PH = re.compile(r"\{\{\s*([\w$]+)\s*\}\}")
 
 
 def substitute(value, variables: dict):
@@ -56,13 +56,22 @@ def dig(data, path: str):
 
 
 class _Prefixed:
-    """Gọi qua client dùng chung (ai.http) với URL gốc cố định — không tạo client mới mỗi kịch bản."""
+    """Phiên HTTP cho một lượt chạy: cookie riêng (đăng nhập ở bước trước dùng cho bước sau,
+    không lẫn sang kịch bản khác) nhưng dùng chung kết nối của ai.http — không tốn ~0,7s tạo SSL."""
 
     def __init__(self, base_url: str, timeout: float):
         self.base, self.timeout = base_url.rstrip("/"), timeout
+        self.session = httpx.Client(transport=_http._transport, timeout=timeout, follow_redirects=True)
 
     def request(self, method: str, path: str, **kw):
-        return _http.request(method, self.base + path, timeout=self.timeout, **kw)
+        return self.session.request(method, self.base + path, **kw)
+
+
+def runtime_vars() -> dict:
+    """Biến sinh lúc chạy, khác nhau mỗi lượt: {{$email}}, {{$uuid}}, {{$ts}}, {{$name}}."""
+    u = uuid.uuid4().hex
+    return {"$uuid": u, "$ts": str(int(time.time() * 1000)), "$email": f"tp_{u[:10]}@example.com",
+            "$name": f"TestPilot {u[:6]}"}
 
 
 def run_api_test(tc: TestCase, base_url: str, *, before_each: Callable[[], None] | None = None,
@@ -72,47 +81,47 @@ def run_api_test(tc: TestCase, base_url: str, *, before_each: Callable[[], None]
      expected_status, actual_status, response_body}."""
     results = []
     data_sets = tc.data_sets or [None]
-    with nullcontext(_Prefixed(base_url, timeout)) as client:
-        for ds in data_sets:
-            if before_each:
-                before_each()
-            variables = dict(ds.values) if ds else {}
-            res: dict = {"data_set": ds.name if ds else "-", "expected": ds.expected if ds else "accept",
-                         "status": "passed", "error_msg": ""}
-            t0 = time.perf_counter()
-            for i, step in enumerate(tc.steps):
-                path = substitute(step.path or "", variables)
-                body = substitute(step.body, variables)
-                expect = substitute(step.expect, variables) or {}
-                res.update(step=i, request={"method": step.method, "path": path, "body": body})
-                try:
-                    r = client.request(step.method or "GET", path, json=body, headers=step.headers)
-                except httpx.HTTPError as e:
-                    res.update(status="failed", error_msg=f"lỗi kết nối: {e}")
+    for ds in data_sets:
+        client = _Prefixed(base_url, timeout)          # phiên mới cho mỗi lượt
+        if before_each:
+            before_each()
+        variables = {**runtime_vars(), **(dict(ds.values) if ds else {})}
+        res: dict = {"data_set": ds.name if ds else "-", "expected": ds.expected if ds else "accept",
+                     "status": "passed", "error_msg": ""}
+        t0 = time.perf_counter()
+        for i, step in enumerate(tc.steps):
+            path = substitute(step.path or "", variables)
+            body = substitute(step.body, variables)
+            expect = substitute(step.expect, variables) or {}
+            res.update(step=i, request={"method": step.method, "path": path, "body": body})
+            try:
+                r = client.request(step.method or "GET", path, json=body, headers=step.headers)
+            except httpx.HTTPError as e:
+                res.update(status="failed", error_msg=f"lỗi kết nối: {e}")
+                break
+            try:
+                resp = r.json()
+            except ValueError:
+                resp = r.text[:2000]
+            res.update(expected_status=expect.get("status") if isinstance(expect, dict) else None,
+                       actual_status=r.status_code, response_body=resp)
+            if isinstance(expect, dict):
+                if expect.get("status") and r.status_code != int(expect["status"]):
+                    res.update(status="failed",
+                               error_msg=f"expected status {expect['status']}, got {r.status_code}")
                     break
-                try:
-                    resp = r.json()
-                except ValueError:
-                    resp = r.text[:2000]
-                res.update(expected_status=expect.get("status") if isinstance(expect, dict) else None,
-                           actual_status=r.status_code, response_body=resp)
-                if isinstance(expect, dict):
-                    if expect.get("status") and r.status_code != int(expect["status"]):
-                        res.update(status="failed",
-                                   error_msg=f"expected status {expect['status']}, got {r.status_code}")
-                        break
-                    if expect.get("json_contains") and not json_contains(expect["json_contains"], resp):
-                        res.update(status="failed",
-                                   error_msg=f"response không chứa {expect['json_contains']}")
-                        break
-                for var, p in (step.save or {}).items():
-                    try:
-                        variables[var] = dig(resp, p)
-                    except (KeyError, IndexError, TypeError, ValueError):
-                        res.update(status="failed", error_msg=f"không lấy được '{p}' từ response để lưu vào {var}")
-                        break
-                if res["status"] == "failed":
+                if expect.get("json_contains") and not json_contains(expect["json_contains"], resp):
+                    res.update(status="failed",
+                               error_msg=f"response không chứa {expect['json_contains']}")
                     break
-            res["duration_ms"] = int((time.perf_counter() - t0) * 1000)
-            results.append(res)
+            for var, p in (step.save or {}).items():
+                try:
+                    variables[var] = dig(resp, p)
+                except (KeyError, IndexError, TypeError, ValueError):
+                    res.update(status="failed", error_msg=f"không lấy được '{p}' từ response để lưu vào {var}")
+                    break
+            if res["status"] == "failed":
+                break
+        res["duration_ms"] = int((time.perf_counter() - t0) * 1000)
+        results.append(res)
     return results

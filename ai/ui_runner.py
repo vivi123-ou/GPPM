@@ -15,7 +15,7 @@ import base64
 import time
 from urllib.parse import urljoin, urlparse
 
-from ai.quick_runner import substitute
+from ai.quick_runner import runtime_vars, substitute
 from backend.models import Step, Target, TestCase
 
 STEP_TIMEOUT_MS = 6000
@@ -164,7 +164,7 @@ def run_ui_tests(cases: list[TestCase], base_url: str, *, heal: bool = True, hea
 
 
 def _run_one(browser, tc: TestCase, ds, base: str, heal: bool) -> dict:
-    variables = dict(ds.values) if ds else {}
+    variables = {**runtime_vars(), **(dict(ds.values) if ds else {})}
     res: dict = {"data_set": ds.name if ds else "-", "expected": ds.expected if ds else "accept",
                  "status": "passed", "error_msg": "", "steps": []}
     ctx = browser.new_context(viewport={"width": 1280, "height": 800}, locale="vi-VN")

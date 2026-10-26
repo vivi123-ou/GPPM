@@ -237,10 +237,17 @@ function app() {
     prioLabel: {high: 'cao', medium: 'trung bình', low: 'thấp'},
     templates: [
       {label: 'Đặt hàng', text: `Khách hàng đặt mua điện thoại tại TVT MOBILE.
+- Đặt hàng yêu cầu đăng nhập; chưa đăng nhập gọi đặt hàng trả về 401.
 - Đặt hàng hợp lệ trả về 201; tổng tiền (total) bằng tổng (đơn giá × số lượng) của các sản phẩm.
 - Email không hợp lệ (rỗng, thiếu @, thiếu tên miền) bị từ chối với mã 422.
 - Số lượng mỗi sản phẩm từ 1 đến 20; ngoài khoảng này bị từ chối với mã 422.
 - Sản phẩm không tồn tại trả về 404. Đặt vượt số lượng tồn kho trả về 409.`},
+      {label: 'Đăng ký / đăng nhập', text: `Khách hàng đăng ký và đăng nhập tài khoản TVT MOBILE.
+- Đăng ký với họ tên, email hợp lệ và mật khẩu từ 8 ký tự trả về 201 và tự đăng nhập.
+- Email sai định dạng hoặc mật khẩu dưới 8 ký tự bị từ chối với mã 422; email đã đăng ký trả về 409.
+- Đăng nhập đúng email và mật khẩu trả về 200; sai mật khẩu hoặc email chưa đăng ký trả về 401.
+- Sau khi đăng nhập, xem thông tin tài khoản (auth/me) trả về 200 với đúng email; chưa đăng nhập trả về 401.
+- Đăng xuất xong thì auth/me trả về 401.`},
       {label: 'Danh sách sản phẩm', text: `Khách xem danh sách điện thoại.
 - GET danh sách sản phẩm trả về 200; mỗi sản phẩm có id, tên, hãng, giá và tồn kho.
 - Giá và tồn kho không được âm.`},

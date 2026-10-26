@@ -47,6 +47,12 @@ Rules:
 - Values must be literal JSON data, never code: do NOT write "a".repeat(300), "x" * 101 or
   string concatenation. For long strings use the token "<len:N>" (exactly N characters) or
   "<len:N:@example.com>" (N characters ending with that suffix).
+- Authentication: cookies are kept between the steps of ONE test case (each test case/data set
+  starts with a fresh, logged-out session). If an endpoint needs a logged-in user, first create
+  the session inside the same test: register a new account (POST .../register) with the unique
+  email "{{$email}}" and a password of at least 8 characters, or log in, then call the endpoint.
+  Built-in runtime variables (no data_sets needed): {{$email}} unique email, {{$uuid}}, {{$ts}}, {{$name}}.
+  A test checking that an endpoint requires login simply calls it without logging in.
 - Only expect a rejection (4xx) when the requirement or the OpenAPI constraints (minLength,
   maxLength, minimum, maximum, required, format) actually define that rule.
 - All data_sets inside ONE test case must share the same "expected" outcome; split valid

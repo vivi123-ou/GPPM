@@ -15,7 +15,7 @@ from ai.json_utils import unwrap_list
 from ai.llm_provider import LLMProvider, get_provider
 from backend.models import TestCase
 
-_PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+_PLACEHOLDER = re.compile(r"\{\{\s*([\w$]+)\s*\}\}")
 _PLAN_PREFIX = re.compile(r"^\s*\[[a-z]+/[a-z]+(?:/[a-z]*)?\]\s*", re.I)
 _PLAN_SUFFIX = re.compile(r"\s+[—–-]\s+(GET|POST|PUT|PATCH|DELETE)\s+/\S*.*$")
 DEFAULT_EXCLUDE = ("/api/shop/bugs,/api/shop/reset,/api/requirements,/api/test-cases,/api/runs,"
@@ -317,7 +317,7 @@ def _check_semantics(tc: TestCase) -> None:
         if step_vars & later - saved:
             raise ValueError(f"bước {i}: dùng biến {sorted(step_vars & later - saved)} trước khi save")
         saved |= set((s.save or {}).keys())
-    used = set(find_placeholders(tc)) - saved
+    used = {v for v in find_placeholders(tc) if not v.startswith("$")} - saved   # $email… sinh lúc chạy
     if used and tc.data_sets:
         for d in tc.data_sets:
             missing = used - set(d.values)
