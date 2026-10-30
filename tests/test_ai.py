@@ -371,11 +371,11 @@ def test_autopilot_login_markers_are_replaced_and_password_not_sent(monkeypatch)
                   {"action": "fill", "target": {"role": "textbox", "name": "Mật khẩu"}, "value": "{{password}}"},
                   {"action": "click", "target": {"role": "button", "name": "Đăng nhập"}}]}]})
     from ai import autopilot as ap
-    monkeypatch.setattr(ap, "explore", lambda url, max_pages, login: (
+    monkeypatch.setattr(ap, "explore", lambda url, max_pages, login, extra_paths=None: (
         [{"path": "/login", "title": "Đăng nhập", "html": login_html, "after_login": False}],
         {"login_page": "/login", "attempted": True, "success": True}))
     r = ap.autopilot("https://lms.example", provider=fake, login={"username": "sv01", "password": "S3cret!"})
-    assert r["test_cases"][0].data_sets[0].values == {"username": "sv01", "password": "S3cret!"}
+    assert r["test_cases"][0].data_sets[0].values == {"username": "__USERNAME__", "password": "__PASSWORD__"}
     assert "S3cret!" not in fake.calls[0][1] and "__USERNAME__" in fake.calls[0][1]
 
 

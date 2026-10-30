@@ -22,6 +22,8 @@ class Step(BaseModel):
     # API: lưu giá trị từ response để bước sau dùng, {"ten_bien": "duong.dan.json"}
     # vd {"order_id": "order_id"} → bước sau dùng "{{order_id}}"
     save: Optional[dict[str, str]] = None
+    # API: kiểm tra hiệu năng/số lần lặp, xem ai/quick_runner.py (requests, concurrency, p95_ms, ...)
+    perf: Optional[dict[str, Any]] = None
     # --- bước UI ---
     action: Optional[Action] = None
     url: Optional[str] = None
@@ -39,5 +41,8 @@ class TestCase(BaseModel):
     title: str
     type: Literal["api", "ui"]
     priority: Literal["low", "medium", "high"] = "medium"
+    category: Literal["functional", "security", "performance"] = "functional"
+    technique: Optional[str] = None           # happy, boundary, OWASP A01, ...
+    covers: Optional[list[str]] = None        # tiêu chí chấp nhận mà kịch bản này kiểm tra
     data_sets: list[DataSet] = Field(default_factory=list)
     steps: list[Step]

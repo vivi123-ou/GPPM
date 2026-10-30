@@ -224,3 +224,10 @@ __marimo__/
 #VS Code configuration files
 .vscode/
 .venv/
+
+# Dữ liệu kiểm thử cục bộ
+testpilot.db
+testpilot.db-journal
+*.bak.db
+demo.db
+demo_shop_final.db

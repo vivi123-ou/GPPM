@@ -7,16 +7,20 @@
 
 TestPilot là ứng dụng hỗ trợ kiểm thử phần mềm theo yêu cầu. Người dùng nhập user story hoặc API spec, tạo test case, chạy kiểm thử API/UI và xem kết quả ngay trên dashboard. Repo cũng có **TVT MOBILE**, một cửa hàng điện thoại mẫu với dữ liệu SQLite và bug flags để thực hành, tích hợp và trình diễn luồng kiểm thử.
 
-> Trạng thái hiện tại: Demo Shop và module AI (Gemini / Groq / OpenAI / Ollama) đã chạy được; AI viết test, sinh dữ liệu, chạy thử test API và phân loại lỗi trên trang **Kiểm thử website** (`/ai.html`). Runner UI (Playwright), lưu kết quả và màn hình duyệt bản vá trên dashboard đang được phát triển. Xem mục [AI Model](#ai-model).
+> **Tài liệu kỹ thuật đầy đủ:** mở trang **Tài liệu** trong ứng dụng (`/handbook.html`) hoặc đọc thư mục [docs/handbook](docs/handbook). API tương tác ở `/docs`.
 
 ## Tính năng
 
 ### TestPilot
 
-- Nhập yêu cầu và tạo test case theo schema chung.
-- Lưu yêu cầu và test case bằng SQLite.
-- Dashboard hiện hỗ trợ nhập yêu cầu và quản lý test case.
-- Runner API/UI và luồng báo cáo đang là phần cần tích hợp tiếp; các module trong `backend/runner/` hiện chưa triển khai.
+- **Sinh kịch bản** chức năng, bảo mật (OWASP) và hiệu năng từ yêu cầu hoặc từ một URL (Autopilot).
+- **Pipeline agent**: Writer viết, Reviewer chấm điểm bằng 17 luật và đối chiếu tiêu chí chấp nhận, Fixer tự sửa. Mọi lượt đều ghi vết.
+- **Skill và bài học**: kiến thức QA đọc và sửa được; hệ thống rút bài học từ kết quả thật, người duyệt mới có hiệu lực. Xuất dữ liệu JSONL để fine-tune sau này.
+- **Thực thi đúng kịch bản đã chọn**, API bằng HTTP và UI bằng Playwright; phân loại nguyên nhân lỗi; báo cáo Excel kèm các bước tái hiện.
+- **Self-healing locator** có người duyệt; phân tích DOM và độ bền của locator.
+- **Bảo trì**: phân tích ảnh hưởng khi yêu cầu đổi, phát hiện API đổi, lịch sử phiên bản.
+- **Số liệu đo được**: tỉ lệ sinh đúng định dạng, qua duyệt, độ phủ, phát hiện lỗi cài sẵn.
+- **Bảo mật của chính ứng dụng**: không lưu mật khẩu tài khoản thử nghiệm, chặn SSRF, token API, giới hạn tần suất, header bảo mật.
 
 ### TVT MOBILE Demo Shop
 
@@ -46,11 +50,16 @@ backend/
   ai_client.py       # Điểm nối backend ↔ AI (USE_MOCK=1: mock, 0: AI thật)
   ai_routes.py       # API /api/ai/* cho trang Kiểm thử website
   export.py          # Xuất Excel/CSV test case và báo cáo
-  runner/            # Runner API, UI và self-healing
+  quality_routes.py  # API số liệu, duyệt, skill, bài học, bảo trì
+  security.py        # Token, giới hạn tần suất, header bảo mật, chặn SSRF
+  vault.py           # Tài khoản thử nghiệm, chỉ nằm trong bộ nhớ
+  demo_pack.py       # Bộ kịch bản mẫu viết tay, không cần AI
   mocks/             # Dữ liệu mock cho AI
 ai/                  # Module AI (xem mục AI Model)
 tests/               # Test tự động của module AI (pytest)
-docs/AI.md           # Tài liệu kỹ thuật module AI cho cả nhóm
+docs/handbook/       # Tài liệu kỹ thuật (hiển thị ở /handbook.html)
+docs/AI.md           # Quy ước module AI cho cả nhóm
+scripts/             # Đánh giá A/B, khởi động buổi demo
 ShopDemo/            # Demo Shop: API, trang bán hàng và tài nguyên
   main.py            # Entry point để chạy riêng Demo Shop
   routes.py          # API shop, SQLite và bug flags
@@ -62,7 +71,12 @@ ShopDemo/            # Demo Shop: API, trang bán hàng và tài nguyên
 frontend/
   index.html         # Dashboard TestPilot
   ai.html            # Kiểm thử website: tạo kịch bản, tự động khám phá, thực thi, báo cáo
-  theme.css, theme.js # Giao diện dùng chung (trắng–tím), thanh điều hướng
+  quality.html       # Số liệu chất lượng, phép đo phát hiện lỗi
+  agents.html        # Agents, skills, bài học, nhật ký pipeline
+  maintenance.html   # Yêu cầu và API thay đổi, DOM và locator, self-healing
+  handbook.html      # Tài liệu kỹ thuật
+  vendor/            # Tailwind, Alpine, marked lưu sẵn: chạy được khi không có Internet
+  theme.css, theme.js # Giao diện dùng chung, thanh điều hướng
 README.md
 requirements.txt
 ```
@@ -158,7 +172,7 @@ Gửi JSON này tới `POST /api/shop/checkout` sau khi đăng nhập để có 
 | `wrong_total` | Tổng đơn hàng bị cộng thừa 100.000₫ |
 | `allow_empty_email` | Chấp nhận email không hợp lệ |
 | `ignore_stock` | Cho đặt vượt tồn kho và bỏ qua trừ kho |
-| `ui_v2` | Đổi màu, font và kiểu nút để thử locator/self-healing |
+| `ui_v2` | Đổi giao diện, đổi `data-testid` và chữ trên nút, làm gãy locator cũ để thử self-healing |
 
 Bật lỗi tổng tiền:
 
@@ -275,8 +289,8 @@ Bước **1 · Hệ thống mục tiêu** nhận URL bất kỳ (trang web hoặ
 | Sauce Demo (`https://www.saucedemo.com`) | Chỉ giao diện | Tab **Tự động khám phá** → **Bắt đầu khám phá** |
 
 - Website có OpenAPI (AI tự dò `/openapi.json`, `/api/v3/openapi.json`, `/swagger.json`..., hoặc dán thẳng link file `.json`): AI dùng đúng đường dẫn API và dữ liệu thật, test API **chạy được ngay** và được AI phân loại lỗi.
-- Website chỉ có giao diện: Autopilot sinh test **UI** (bấm tên test để xem các bước). Chạy test UI cần Runner UI (Playwright) của dashboard, đang được phát triển.
-- Autopilot chỉ duyệt các trang truy cập được không cần đăng nhập.
+- Website chỉ có giao diện: Autopilot sinh test **UI** và chạy bằng Playwright.
+- Website cần đăng nhập: cung cấp tài khoản thử nghiệm để Autopilot khám phá phần bên trong.
 
 Kết quả thử thật: Petstore 4 test (3 pass, 1 fail: tạo thú cưng hợp lệ nhưng server trả 500, AI phân loại **Lỗi ứng dụng**, kiểm tra tay xác nhận đúng); Sauce Demo: Autopilot sinh 7 test UI cho luồng đăng nhập.
 
@@ -297,8 +311,8 @@ TestPilot mở website bằng trình duyệt, khảo sát các trang, tạo kị
 **thực thi** (API bằng HTTP, giao diện bằng Playwright), phân loại nguyên nhân lỗi và **tự tải báo cáo Excel**.
 
 - **Website cần đăng nhập**: tích *Website yêu cầu đăng nhập* và nhập tài khoản thử nghiệm. TestPilot đăng nhập trước
-  rồi khảo sát các trang bên trong. Mật khẩu **không gửi cho AI** (AI chỉ dùng `{{username}}`/`{{password}}`), chỉ dùng khi
-  trình duyệt thực thi và được che (`••••••`) trong file xuất. Không có tài khoản thì chỉ khảo sát trang đăng nhập và trang công khai.
+  rồi khảo sát các trang bên trong. Mật khẩu **không gửi cho AI, không ghi vào kịch bản hay DB**: kịch bản chỉ giữ dấu
+  `__USERNAME__`/`__PASSWORD__`, giá trị thật nằm trong bộ nhớ server và chỉ dùng khi thực thi. Khởi động lại server thì nhập lại.
 - **Kịch bản giao diện**: mỗi lượt không đạt có ảnh chụp màn hình và nhật ký từng bước.
 - **Self-healing**: khi không tìm thấy phần tử, TestPilot gửi DOM hiện tại cho AI đề xuất locator thay thế, chạy thử ngay;
   nếu thành công, báo cáo hiện bản sửa kèm nút **Áp dụng** (ghi vào kịch bản, tăng phiên bản).
@@ -339,8 +353,8 @@ Chạy trên Demo Shop với Gemini (`gemini-3.5-flash`), yêu cầu đặt hàn
 | --- | --- | --- |
 | `GET` | `/api/ai/config` | Provider/model đang dùng |
 | `GET` | `/api/ai/inspect?url=...` | Kiểm tra hệ thống: kết nối, OpenAPI, số endpoint, phương pháp đề xuất |
-| `POST` | `/api/ai/generate` | `{"text", "url", "count"}` → tạo kịch bản (count tối đa 150) |
-| `POST` | `/api/ai/run` | `{"test_case_ids": [...], "url"}` → chạy test API + AI phân loại lỗi |
+| `POST` | `/api/ai/generate` | `{"text", "url", "count", "categories"}` → pipeline agent (count tối đa 150) |
+| `POST` | `/api/ai/run` | `{"test_case_ids": [...], "url"}` → chạy đúng các kịch bản đã chọn; danh sách rỗng là lỗi 400 |
 | `POST` | `/api/ai/autopilot` | `{"url", "username"?, "password"?}` → khảo sát website (đăng nhập nếu có tài khoản) và tạo kịch bản |
 | `POST` | `/api/ai/test-data/{id}?save=true` | Sinh dữ liệu EP/BVA cho một test case |
 | `POST` | `/api/ai/heal` | `{"step": {...}, "url": "..."}` → đề xuất locator mới |
@@ -350,6 +364,8 @@ Chạy trên Demo Shop với Gemini (`gemini-3.5-flash`), yêu cầu đặt hàn
 | `GET` | `/api/export/test-cases.xlsx?ids=...` | Tài liệu test case (Excel) |
 | `GET` | `/api/export/test-cases.csv?ids=...` | Test case dạng CSV |
 | `POST` | `/api/export/report.xlsx` | Gửi JSON kết quả của `/api/ai/run` → báo cáo Excel |
+
+Danh sách đầy đủ, gồm `/api/quality`, `/api/knowledge`, `/api/maintenance`, xem [tham chiếu API](docs/handbook/09-api.md).
 
 Quy ước cho runner (thay biến `{{x}}`, `save`, `json_contains`, data set `accept`/`reject`) xem [docs/AI.md](docs/AI.md).
 
@@ -363,4 +379,4 @@ Quy ước cho runner (thay biến `{{x}}`, `save`, `json_contains`, data set `a
 
 - `demo_shop.db` chứa sản phẩm, đơn hàng và trạng thái bug flags của cửa hàng mẫu.
 - `testpilot.db` chứa dữ liệu TestPilot như yêu cầu, test case, lượt chạy và kết quả.
-- Dữ liệu SQLite được tạo tại máy chạy ứng dụng, không cần commit các file database vào Git.
+- Dữ liệu SQLite được tạo tại máy chạy ứng dụng, **không commit** các file database vào Git (`testpilot.db` có thể chứa dữ liệu kiểm thử của các website đã thử).

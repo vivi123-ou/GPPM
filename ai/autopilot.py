@@ -114,13 +114,16 @@ def try_login(page, username: str, password: str) -> dict:
 
 
 def explore(start_url: str, max_pages: int = 6, timeout_ms: int = 15000,
-            login: dict | None = None) -> tuple[list[dict], dict]:
-    """BFS các trang cùng origin, trả về ([{url, path, title, html, after_login}], thông tin đăng nhập).
-    login={"username","password"}: gặp trang đăng nhập thì đăng nhập trước rồi mới khám phá tiếp."""
+            login: dict | None = None, extra_paths: list[str] | None = None) -> tuple[list[dict], dict]:
+    """BFS các trang cùng origin, trả về ([{url, path, title, html, after_login, links}], thông tin đăng nhập).
+    login={"username","password"}: gặp trang đăng nhập thì đăng nhập trước rồi mới khám phá tiếp.
+    extra_paths: đường đi người dùng chỉ định, ưu tiên duyệt trước (trang không có link dẫn tới)."""
     from playwright.sync_api import sync_playwright   # import muộn: chỉ cần khi dùng Autopilot
 
     origin = urlparse(start_url)
     seen, queue, pages = set(), deque([start_url]), []
+    for p in extra_paths or []:
+        queue.append(urljoin(start_url, p.strip()))
     auth = {"login_page": None, "attempted": False, "success": False}
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
@@ -147,11 +150,15 @@ def explore(start_url: str, max_pages: int = 6, timeout_ms: int = 15000,
                         if auth["success"]:
                             queue.appendleft(page.url)          # khám phá trang sau đăng nhập trước
                             seen.discard(page.url.split("#")[0])
+                links = []
                 for href in page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)"):
                     u = urlparse(href)
-                    if (u.scheme in ("http", "https") and u.netloc == origin.netloc and href not in seen
+                    if (u.scheme in ("http", "https") and u.netloc == origin.netloc
                             and not any(k in href.lower() for k in _SKIP_LINK)):
-                        queue.append(href)
+                        links.append(u.path or "/")
+                        if href not in seen:
+                            queue.append(href)
+                pages[-1]["links"] = sorted(set(links))
         finally:
             browser.close()
     return pages, auth
@@ -159,22 +166,25 @@ def explore(start_url: str, max_pages: int = 6, timeout_ms: int = 15000,
 
 def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: int = 10,
               provider: LLMProvider | None = None, pages: list[dict] | None = None,
-              include_api: bool = True, login: dict | None = None) -> dict:
+              include_api: bool = True, login: dict | None = None, paths: list[str] | None = None,
+              flow: str = "", guidance: str = "") -> dict:
     """Trả về {"app_summary", "pages": [{path,title,elements}], "test_cases": [TestCase],
     "openapi_found": bool, "auth": {...}}. Truyền sẵn `pages` để bỏ qua bước mở trình duyệt.
 
-    login={"username","password"}: tài khoản thử nghiệm. Mật khẩu KHÔNG gửi cho AI — AI chỉ dùng
-    {{username}}/{{password}}, giá trị thật được điền vào data_sets sau khi sinh."""
+    login={"username","password"}: tài khoản thử nghiệm. Mật khẩu KHÔNG gửi cho AI và KHÔNG lưu vào kịch bản:
+    kịch bản giữ dấu __USERNAME__/__PASSWORD__, giá trị thật chỉ được thay vào lúc thực thi.
+    paths, flow: "đường đi" người dùng cung cấp: các trang cần duyệt và luồng nghiệp vụ cần kiểm thử."""
     llm = provider or get_provider()
     auth = {"login_page": None, "attempted": False, "success": False}
     if pages is None:
-        pages, auth = explore(url, max_pages=max_pages, login=login)
+        pages, auth = explore(url, max_pages=max_pages, login=login, extra_paths=paths)
     page_infos = []
     for p in pages:
         els = extract_elements(p.get("html", ""), limit=60)
         tag = " (sau khi đăng nhập)" if p.get("after_login") else ""
         page_infos.append({"path": p.get("path", "/"), "title": (p.get("title", "") + tag),
-                           "elements": format_elements(els)})
+                           "elements": format_elements(els), "count": len(els), "links": p.get("links", []),
+                           "after_login": bool(p.get("after_login")), "login_form": bool(p.get("login_form"))})
 
     test_cases: list[TestCase] = []
     warnings: list[str] = []
@@ -182,7 +192,10 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
     prefix = _prefix_for("autopilot:" + url)
     if page_infos:
         pages_txt = "\n\n".join(f"## {pi['path']} — {pi['title']}\n{pi['elements']}" for pi in page_infos)
-        user = prompts.AUTOPILOT_USER.format(base_url=url, pages=pages_txt[:20000],
+        hints = (f"\nThe user wants these journeys covered first:\n{flow.strip()}\n" if flow.strip() else "")
+        if guidance:
+            hints += "\n" + guidance + "\n"
+        user = prompts.AUTOPILOT_USER.format(base_url=url, pages=pages_txt[:20000], hints=hints,
                                              min_cases=min_cases, max_cases=max_cases)
         if auth["login_page"]:
             user += "\n\n" + (prompts.AUTOPILOT_LOGIN_OK.format(login_page=auth["login_page"])
@@ -203,7 +216,7 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
             except Exception as e:
                 warnings.append(f"AI sửa lỗi schema thất bại: {e}")
         warnings += [f"Bỏ test lệch schema: {e}" for e in errors]
-        test_cases += [_inject_login(c, login) for c in cases if c.type == "ui"]
+        test_cases += [c for c in cases if c.type == "ui"]
     if auth["login_page"] and not auth["success"]:
         warnings.append("Website yêu cầu đăng nhập" + (": đăng nhập bằng tài khoản thử nghiệm không thành công"
                         if auth["attempted"] else "; chưa cung cấp tài khoản thử nghiệm nên chỉ khảo sát trang công khai"))
@@ -229,21 +242,9 @@ def autopilot(url: str, *, max_pages: int = 6, min_cases: int = 4, max_cases: in
             ui_i += 1
             tc.id = f"{prefix}U-{ui_i:02d}"
     return {"app_summary": summary, "openapi_found": spec is not None,
-            "pages": [{"path": pi["path"], "title": pi["title"]} for pi in page_infos],
+            "pages": [{k: pi[k] for k in ("path", "title", "count", "links", "after_login", "login_form")}
+                      for pi in page_infos],
             "test_cases": test_cases, "warnings": warnings, "auth": auth}
-
-
-def _inject_login(tc: TestCase, login: dict | None) -> TestCase:
-    """Thay dấu __USERNAME__/__PASSWORD__ trong data_sets bằng tài khoản thử nghiệm thật."""
-    if not login:
-        return tc
-    for d in tc.data_sets:
-        for k, v in list(d.values.items()):
-            if v == USER_MARK:
-                d.values[k] = login.get("username", "")
-            elif v == PASS_MARK:
-                d.values[k] = login.get("password", "")
-    return tc
 
 
 def _safe_list(data) -> list:

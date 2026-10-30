@@ -15,7 +15,7 @@ import base64
 import time
 from urllib.parse import urljoin, urlparse
 
-from ai.quick_runner import run_variables, substitute
+from ai.quick_runner import MissingCredentials, run_variables, substitute
 from backend.models import Step, Target, TestCase
 
 STEP_TIMEOUT_MS = 6000
@@ -80,8 +80,10 @@ def do_step(page, s: Step, base: str, timeout_ms: int = STEP_TIMEOUT_MS) -> str:
     """Thực hiện một bước; trả về mô tả ngắn; lỗi thì raise."""
     a = s.action
     if a == "goto":
-        page.goto(urljoin(base + "/", (s.url or "/").lstrip("/")) if not (s.url or "").startswith("http") else s.url,
-                  wait_until="load", timeout=20000)
+        dest = urljoin(base + "/", (s.url or "/").lstrip("/")) if not (s.url or "").startswith("http") else s.url
+        if _origin(dest) != _origin(base):     # kịch bản do AI sinh không được dẫn trình duyệt ra website khác
+            raise ValueError(f"goto ngoài hệ thống đang kiểm thử: {dest}")
+        page.goto(dest, wait_until="load", timeout=20000)
         _settle(page)
         return page.url
     if a == "wait_for" and not (s.target and any(s.target.model_dump().values())):
@@ -125,7 +127,8 @@ def _assert_text(loc, expected: str, timeout_ms: int) -> str:
             text = loc.inner_text(timeout=1000)
         except Exception:
             text = ""
-        if expected.strip().lower() in text.lower():
+        # So như mắt người đọc: inner_text có xuống dòng giữa các khối ("1\nGiỏ hàng" hiển thị là "1 Giỏ hàng")
+        if " ".join(expected.split()).lower() in " ".join(text.split()).lower():
             return f'thấy "{expected}"'
         time.sleep(0.25)
     raise AssertionError(f'expected text "{expected}", got "{text.strip()[:160]}"')
@@ -147,7 +150,8 @@ def _describe(s: Step) -> str:
     return t.testid and f'testid="{t.testid}"' or (t.name and f'{t.role or ""} "{t.name}"'.strip()) or t.css or ""
 
 
-def run_ui_tests(cases: list[TestCase], base_url: str, *, heal: bool = True, headless: bool = True) -> dict[str, list[dict]]:
+def run_ui_tests(cases: list[TestCase], base_url: str, *, heal: bool = True, headless: bool = True,
+                 credentials: dict | None = None) -> dict[str, list[dict]]:
     """Chạy nhiều test UI trong một trình duyệt (mỗi lượt một context riêng). Trả về {tc.id: [kết quả]}."""
     from playwright.sync_api import sync_playwright
 
@@ -157,16 +161,21 @@ def run_ui_tests(cases: list[TestCase], base_url: str, *, heal: bool = True, hea
         browser = pw.chromium.launch(headless=headless)
         try:
             for tc in cases:
-                out[tc.id] = [_run_one(browser, tc, ds, base, heal) for ds in (tc.data_sets or [None])]
+                out[tc.id] = [_run_one(browser, tc, ds, base, heal, credentials) for ds in (tc.data_sets or [None])]
         finally:
             browser.close()
     return out
 
 
-def _run_one(browser, tc: TestCase, ds, base: str, heal: bool) -> dict:
-    variables = run_variables(ds)
+def _run_one(browser, tc: TestCase, ds, base: str, heal: bool, credentials: dict | None = None) -> dict:
     res: dict = {"data_set": ds.name if ds else "-", "expected": ds.expected if ds else "accept",
                  "status": "passed", "error_msg": "", "steps": []}
+    try:
+        variables = run_variables(ds, credentials)
+    except MissingCredentials:
+        res.update(status="failed", duration_ms=0, needs_credentials=True,
+                   error_msg="Kịch bản cần tài khoản thử nghiệm: nhập tài khoản rồi thực thi lại.")
+        return res
     ctx = browser.new_context(viewport={"width": 1280, "height": 800}, locale="vi-VN")
     page = ctx.new_page()
     page.set_default_timeout(STEP_TIMEOUT_MS)

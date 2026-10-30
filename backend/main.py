@@ -1,14 +1,18 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend import ai_client
 from backend.ai_routes import router as ai_router
 from backend.export import router as export_router
+from backend.quality_routes import knowledge, maintenance, quality
+from backend.security import security_middleware
 from backend.db import get_conn, init_db
 from backend.models import TestCase
 from ShopDemo import router as demo_shop_router
@@ -19,14 +23,28 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="TestPilot", lifespan=lifespan)
+app.middleware("http")(security_middleware)
+
+@app.exception_handler(Exception)
+async def unexpected_error(request, exc):
+    """Lỗi ngoài dự kiến: trả JSON để giao diện hiện thông báo; chi tiết chỉ ghi ở log của server."""
+    logging.getLogger("testpilot").exception("Lỗi xử lý %s", request.url.path)
+    return JSONResponse({"detail": "Có lỗi khi xử lý yêu cầu. Xem log của server để biết chi tiết."}, status_code=500)
+
 app.include_router(demo_shop_router)
 app.include_router(ai_router)
 app.include_router(export_router)
+app.include_router(quality)
+app.include_router(knowledge)
+app.include_router(maintenance)
 app.mount(
     "/shop-assets",
     StaticFiles(directory=Path(__file__).resolve().parent.parent / "ShopDemo" / "static"),
     name="demo-shop-assets",
 )
+
+# Tài liệu kỹ thuật hiển thị trong trang /handbook.html
+app.mount("/handbook-files", StaticFiles(directory=Path(__file__).resolve().parent.parent / "docs" / "handbook"), name="handbook")
 
 class RequirementIn(BaseModel):
     text: str
@@ -72,6 +90,17 @@ def update_test_case(tc_id: str, tc: TestCase):      # FastAPI tự validate the
     if cur.rowcount == 0:
         raise HTTPException(404, "Không thấy test case")
     return {"ok": True}
+
+class BulkDeleteIn(BaseModel):
+    ids: list[str]
+
+@app.post("/api/test-cases/bulk-delete")
+def bulk_delete(body: BulkDeleteIn):
+    """Dọn nhiều kịch bản cùng lúc (xoá mềm, dữ liệu vẫn còn trong DB)."""
+    conn = get_conn()
+    conn.executemany("UPDATE test_cases SET status='deleted' WHERE id=?", [(i,) for i in body.ids])
+    conn.commit(); conn.close()
+    return {"deleted": len(body.ids)}
 
 @app.delete("/api/test-cases/{tc_id}")
 def delete_test_case(tc_id: str):

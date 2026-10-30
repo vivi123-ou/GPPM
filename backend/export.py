@@ -30,6 +30,7 @@ GREEN_LIGHT, RED_LIGHT, AMBER_LIGHT = "DCFCE7", "FEE2E2", "FEF3C7"
 THIN = Side(style="thin", color="DDD6FE")
 VERDICT_VI = {"app_bug": "Lỗi ứng dụng", "test_broken": "Lỗi kịch bản", "flaky": "Không ổn định"}
 PRIORITY_VI = {"high": "Cao", "medium": "Trung bình", "low": "Thấp"}
+CATEGORY_VI = {"functional": "Chức năng", "security": "Bảo mật", "performance": "Hiệu năng"}
 
 
 def _load(ids: str | None):
@@ -42,6 +43,14 @@ def _load(ids: str | None):
     cases = [(TestCase.model_validate_json(r["json"]), r["version"]) for r in rows
              if not wanted or r["id"] in wanted]
     return cases, reqs
+
+
+def _safe(v):
+    """Chặn CSV/Excel injection: ô bắt đầu bằng = + - @ bị Excel coi là công thức.
+    Nội dung có thể đến từ website đích hoặc AI nên không được tin."""
+    if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + v
+    return v
 
 
 def _mask(v):
@@ -96,7 +105,7 @@ def _header(ws, row: int, headers: list[str]):
 def _rows(ws, start: int, rows: list[list], widths: list[int], fills: list[str | None] | None = None):
     for i, values in enumerate(rows):
         for c, v in enumerate(values, 1):
-            cell = ws.cell(row=start + i, column=c, value=v)
+            cell = ws.cell(row=start + i, column=c, value=_safe(v))
             cell.alignment = Alignment(vertical="top", wrap_text=True)
             cell.border = Border(top=THIN, bottom=THIN, left=THIN, right=THIN)
             if fills and fills[i]:
@@ -145,6 +154,7 @@ def export_test_cases_xlsx(ids: str | None = None):
     prio = Counter(tc.priority for tc, _ in cases)
     summary = [["Tổng số test case", len(cases)],
                ["Test API", types.get("api", 0)], ["Test UI", types.get("ui", 0)],
+               *[[f"Nhóm {v.lower()}", sum(tc.category == k for tc, _ in cases)] for k, v in CATEGORY_VI.items()],
                ["Tổng số bước", sum(len(tc.steps) for tc, _ in cases)],
                ["Tổng số bộ dữ liệu", sum(len(tc.data_sets) for tc, _ in cases)],
                ["Ưu tiên cao", prio.get("high", 0)], ["Ưu tiên trung bình", prio.get("medium", 0)],
@@ -154,7 +164,7 @@ def export_test_cases_xlsx(ids: str | None = None):
     ws.freeze_panes = None
 
     ws = wb.create_sheet("Test cases")
-    _header(ws, 1, ["ID", "Tiêu đề", "Loại", "Ưu tiên", "Yêu cầu", "Phiên bản", "Bước",
+    _header(ws, 1, ["ID", "Tiêu đề", "Loại", "Nhóm", "Ưu tiên", "Yêu cầu", "Phiên bản", "Bước",
                     "Hành động / Method", "Đối tượng / Endpoint", "Dữ liệu / Body", "Kết quả mong đợi"])
     rows, fills = [], []
     for n, (tc, version) in enumerate(cases):
@@ -162,11 +172,12 @@ def export_test_cases_xlsx(ids: str | None = None):
         for i, s in enumerate(tc.steps, 1):
             first = i == 1
             rows.append([tc.id if first else "", tc.title if first else "",
-                         tc.type.upper() if first else "", PRIORITY_VI.get(tc.priority, tc.priority) if first else "",
+                         tc.type.upper() if first else "", CATEGORY_VI.get(tc.category, "") if first else "",
+                         PRIORITY_VI.get(tc.priority, tc.priority) if first else "",
                          tc.requirement_id or "" if first else "", version if first else "",
                          i, *describe_step(s)])
             fills.append(fill)
-    _rows(ws, 2, rows, [14, 38, 7, 11, 10, 9, 6, 16, 34, 40, 40], fills)
+    _rows(ws, 2, rows, [14, 38, 7, 11, 11, 10, 9, 6, 16, 34, 40, 40], fills)
 
     ws = wb.create_sheet("Dữ liệu test")
     _header(ws, 1, ["ID test case", "Tên bộ dữ liệu", "Kỳ vọng", "Giá trị"])
@@ -192,7 +203,7 @@ def export_test_cases_csv(ids: str | None = None):
     w.writerow(["ID", "Tiêu đề", "Loại", "Ưu tiên", "Bước", "Hành động", "Đối tượng", "Dữ liệu", "Kết quả mong đợi"])
     for tc, _ in cases:
         for i, s in enumerate(tc.steps, 1):
-            w.writerow([tc.id, tc.title, tc.type, tc.priority, i, *describe_step(s)])
+            w.writerow([_safe(x) for x in (tc.id, tc.title, tc.type, tc.priority, i, *describe_step(s))])
     # BOM để Excel mở đúng tiếng Việt
     return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="TestPilot_TestCases_{datetime.now():%Y%m%d_%H%M}.csv"'})
@@ -220,7 +231,7 @@ def export_report_xlsx(report: dict):
     ws = wb.create_sheet("Kết quả")
     _header(ws, 1, ["ID test case", "Tiêu đề", "Bộ dữ liệu", "Kết quả", "Thời gian (ms)", "Request",
                     "HTTP mong đợi", "HTTP thực tế", "Lỗi", "AI phân loại", "Độ tin cậy", "Giải thích của AI",
-                    "Đề xuất sửa"])
+                    "Đề xuất sửa", "Các bước tái hiện"])
     rows, fills = [], []
     for r in results:
         a = r.get("ai_analysis") or {}
@@ -231,7 +242,7 @@ def export_report_xlsx(report: dict):
                      r.get("expected_status"), r.get("actual_status"), r.get("error_msg") or "",
                      VERDICT_VI.get(a.get("verdict"), a.get("verdict") or ""),
                      f"{a['confidence']:.0%}" if isinstance(a.get("confidence"), (int, float)) else "",
-                     a.get("explanation") or "", a.get("suggested_fix") or ""])
+                     a.get("explanation") or "", a.get("suggested_fix") or "", "\n".join(r.get("repro") or [])])
         fills.append(GREEN_LIGHT if ok else (AMBER_LIGHT if a.get("verdict") == "test_broken" else RED_LIGHT))
-    _rows(ws, 2, rows, [14, 36, 18, 8, 10, 30, 10, 10, 36, 16, 10, 60, 40], fills)
+    _rows(ws, 2, rows, [14, 36, 18, 8, 10, 30, 10, 10, 36, 16, 10, 60, 40, 70], fills)
     return _send(wb, "TestPilot_BaoCao")

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 
 from pydantic import ValidationError
 
@@ -19,7 +20,7 @@ _PLACEHOLDER = re.compile(r"\{\{\s*([\w$]+)\s*\}\}")
 _PLAN_PREFIX = re.compile(r"^\s*\[[a-z]+/[a-z]+(?:/[a-z]*)?\]\s*", re.I)
 _PLAN_SUFFIX = re.compile(r"\s+[—–-]\s+(GET|POST|PUT|PATCH|DELETE)\s+/\S*.*$")
 DEFAULT_EXCLUDE = ("/api/shop/bugs,/api/shop/reset,/api/requirements,/api/test-cases,/api/runs,"
-                   "/api/ai/,/api/export/")
+                   "/api/ai/,/api/export/,/api/quality/,/api/knowledge/,/api/maintenance/")
 
 
 BATCH_SIZE = 10        # số test case mỗi lần gọi AI (câu trả lời dài hơn dễ bị cắt / sai JSON)
@@ -31,22 +32,27 @@ def generate_test_cases(requirement_text: str, openapi_spec: dict | str | None =
                         ui_elements: str | None = None, sample_data: str | None = None,
                         *, min_cases: int = 4,
                         max_cases: int = 10, count: int | None = None, id_prefix: str | None = None,
-                        provider: LLMProvider | None = None) -> list[TestCase]:
+                        provider: LLMProvider | None = None, guidance: str = "",
+                        stats: dict | None = None) -> list[TestCase]:
     """Sinh test case. openapi_spec / ui_elements là ngữ cảnh tuỳ chọn giúp AI dùng
     đúng path API và đúng phần tử UI có thật.
 
     count: số test case mong muốn. Lớn hơn BATCH_SIZE thì AI lập kế hoạch kịch bản trước
-    rồi viết chi tiết theo từng đợt (chạy song song, AI_PARALLEL luồng)."""
+    rồi viết chi tiết theo từng đợt (chạy song song, AI_PARALLEL luồng).
+    guidance: kiến thức từ skill + bài học đã duyệt (ai/skills.py) đưa vào ngữ cảnh.
+    stats: nếu truyền, ghi số kịch bản AI trả về hợp lệ/không hợp lệ để tính tỉ lệ sinh."""
     llm = provider or get_provider()
     context = _build_context(openapi_spec, ui_elements, sample_data)
+    if guidance:
+        context = f"{context}\n\n{guidance}".strip()
     requirement = requirement_text.strip()
     if count and count > BATCH_SIZE:
-        cases = _generate_many(llm, requirement, context, min(count, MAX_COUNT))
+        cases = _generate_many(llm, requirement, context, min(count, MAX_COUNT), stats)
     else:
         lo, hi = (count, count) if count else (min_cases, max_cases)
         user = prompts.TEST_CASES_USER.format(requirement=requirement, context=context,
                                               min_cases=lo, max_cases=hi)
-        cases, errors = _ask(llm, user)
+        cases, errors = _ask(llm, user, stats)
         if not cases:
             raise ValueError("AI không sinh được test case hợp lệ: " + "; ".join(errors[:3]))
 
@@ -57,10 +63,13 @@ def generate_test_cases(requirement_text: str, openapi_spec: dict | str | None =
     return cases
 
 
-def _ask(llm: LLMProvider, user: str) -> tuple[list[TestCase], list[str]]:
+def _ask(llm: LLMProvider, user: str, stats: dict | None = None) -> tuple[list[TestCase], list[str]]:
     """Một lần gọi AI + một lần cho AI tự sửa các case lệch schema."""
     raw = unwrap_list(llm.complete_json(prompts.TEST_CASES_SYSTEM, user), "test_cases")
     cases, errors = _validate_all(raw)
+    if stats is not None:      # đo ở lần trả lời đầu tiên, trước khi AI tự sửa
+        stats["first_valid"] = stats.get("first_valid", 0) + len(cases)
+        stats["first_invalid"] = stats.get("first_invalid", 0) + len(errors)
     if errors:
         repair = user + "\n\n" + prompts.REPAIR_USER.format(errors="\n".join(errors))
         try:
@@ -93,7 +102,8 @@ def plan_scenarios(llm: LLMProvider, requirement: str, context: str, count: int)
     return scenarios[:count]
 
 
-def _generate_many(llm: LLMProvider, requirement: str, context: str, count: int) -> list[TestCase]:
+def _generate_many(llm: LLMProvider, requirement: str, context: str, count: int,
+                   stats: dict | None = None) -> list[TestCase]:
     from concurrent.futures import ThreadPoolExecutor
 
     scenarios = plan_scenarios(llm, requirement, context, count)
@@ -108,7 +118,7 @@ def _generate_many(llm: LLMProvider, requirement: str, context: str, count: int)
         user = prompts.BATCH_USER.format(requirement=requirement, context=context,
                                          count=len(batch), scenarios=lines)
         try:
-            return _ask(llm, user)[0]
+            return _ask(llm, user, stats)[0]
         except Exception:
             return []           # một đợt lỗi không làm hỏng cả lượt sinh
 
@@ -241,7 +251,13 @@ def normalize(item: dict) -> dict:
     else:
         item["priority"] = item["priority"].lower()
 
-    allowed_step_keys = {"method", "path", "headers", "body", "expect", "save",
+    if item.get("category") not in ("functional", "security", "performance"):
+        item["category"] = "functional"
+    item["technique"] = str(item["technique"]) if item.get("technique") else None
+    covers = item.get("covers")
+    item["covers"] = [str(c) for c in covers] if isinstance(covers, list) and covers else None
+
+    allowed_step_keys = {"method", "path", "headers", "body", "expect", "save", "perf",
                          "action", "url", "target", "value"}
     clean_steps = []
     for s in steps:
@@ -333,5 +349,6 @@ def find_placeholders(tc: TestCase) -> list[str]:
 
 
 def _prefix_for(text: str) -> str:
-    # ID phải duy nhất giữa các yêu cầu vì test_cases.id là PRIMARY KEY
-    return "TC-" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:4].upper()
+    # ID phải duy nhất giữa các lần sinh vì test_cases.id là PRIMARY KEY: cùng một yêu cầu sinh lại
+    # không được ghi đè lô cũ (đang ghi đè một phần thì lô cũ còn sót lại, lẫn với lô mới)
+    return "TC-" + hashlib.sha1(f"{text}|{secrets.token_hex(8)}".encode("utf-8")).hexdigest()[:4].upper()

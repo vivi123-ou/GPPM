@@ -6,10 +6,10 @@
   <title>Kiểm thử website — TestPilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/vendor/tailwind.js"></script>
   <link rel="stylesheet" href="/theme.css">
   <script src="/theme.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script defer src="/vendor/alpine.min.js"></script>
 </head>
 <body x-data="lab()" x-init="init()">
   <div id="tp-nav"></div>
@@ -64,6 +64,10 @@
           </span>
         </div>
 
+        <label x-show="info && !info.local" x-cloak class="flex items-start gap-2 text-sm cursor-pointer mt-3 border border-dashed p-3" style="border-color: var(--line-2)">
+          <input type="checkbox" x-model="authorized" class="mt-1" data-testid="authorized">
+          <span>Tôi có quyền kiểm thử hệ thống này. <span class="small">Bắt buộc cho kịch bản bảo mật, hiệu năng và thao tác ghi/xoá trên website bên ngoài.</span></span>
+        </label>
         <div x-show="info" x-cloak class="term mt-5">
           <div class="term-body text-[12.5px]">
             <div><span class="ps">$</span> <span class="cmd" x-text="'testpilot inspect ' + url"></span></div>
@@ -99,14 +103,27 @@
             placeholder="Đặt hàng hợp lệ trả về 201; tổng tiền bằng tổng (đơn giá × số lượng). Email sai định dạng bị từ chối với mã 422."></textarea>
           <div class="flex flex-wrap items-center gap-3 mt-3">
             <select x-model.number="count" class="field" style="width: auto">
-              <option :value="0">Số lượng: tự động (4–10)</option>
+              <option :value="0">Số lượng: tự động (4–12)</option>
+              <option :value="5">5 kịch bản</option>
+              <option :value="10">10 kịch bản</option>
               <option :value="20">20 kịch bản</option>
               <option :value="50">50 kịch bản</option>
               <option :value="100">100 kịch bản</option>
+              <option :value="150">150 kịch bản</option>
             </select>
-            <button @click="generate()" :disabled="busy || !reqText.trim() || !info?.reachable" class="btn">Tạo kịch bản →</button>
+            <button @click="generate()" :disabled="busy || !reqText.trim() || !info?.reachable || !categories.length" class="btn" data-testid="generate">Tạo kịch bản →</button>
             <button x-show="sample" @click="reqText = sample" class="link text-sm">Chèn yêu cầu mẫu</button>
           </div>
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2 mt-4 text-sm">
+            <span class="label">Nhóm</span>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="functional" x-model="categories"> Chức năng</label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="security" x-model="categories"> Bảo mật (OWASP)</label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="performance" x-model="categories"> Hiệu năng</label>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer text-sm mt-3"><input type="checkbox" x-model="verify" data-testid="verify"> Chạy thử kịch bản ngay sau khi tạo và tự sửa lỗi do kịch bản</label>
+          <label class="flex items-center gap-2 cursor-pointer text-sm mt-1"><input type="checkbox" x-model="economy" data-testid="economy"> Tiết kiệm AI khi cần trên 10 kịch bản: AI viết phần lõi, phần còn lại sinh theo OpenAPI và dữ liệu thật</label>
+          <label class="flex items-center gap-2 cursor-pointer text-sm mt-1"><input type="checkbox" x-model="reuse" data-testid="reuse"> Dùng lại kết quả AI nếu yêu cầu và hệ thống không đổi</label>
+          <p class="small mt-2">Lead lập kế hoạch và giao việc, Writer viết theo skill đang bật, Reviewer chấm điểm, Verifier chạy thử trên hệ thống, Fixer sửa lỗi do kịch bản. Lỗi của ứng dụng được giữ nguyên để báo cáo.</p>
         </div>
 
         <div x-show="mode === 'autopilot'" x-cloak class="mt-4">
@@ -129,6 +146,10 @@
             </div>
           </div>
 
+          <div class="mt-4 grid sm:grid-cols-2 gap-2">
+            <textarea x-model="flow" rows="3" class="field text-sm" placeholder="Đường đi cần kiểm thử (tuỳ chọn). Ví dụ: đăng nhập → thêm sản phẩm vào giỏ → đặt hàng → thấy mã đơn"></textarea>
+            <textarea x-model="pathsText" rows="3" class="field mono text-sm" placeholder="Trang không có liên kết dẫn tới, mỗi dòng một đường dẫn (tuỳ chọn):&#10;/shop/login&#10;/shop/register"></textarea>
+          </div>
           <div class="flex flex-wrap items-center gap-5 mt-5">
             <button @click="fullAuto()" :disabled="busy || !info?.reachable" class="btn">Tự động toàn bộ →</button>
             <button @click="autopilot()" :disabled="busy || !info?.reachable" class="link text-sm">Chỉ khám phá</button>
@@ -136,7 +157,47 @@
           <p class="label mt-2">Tự động toàn bộ: khám phá → tạo kịch bản → thực thi → phân tích nguyên nhân → tải báo cáo Excel.</p>
         </div>
 
+        <!-- summary đã được TP.esc: nội dung có thể đến từ website đích qua AI -->
         <div x-show="summary" x-cloak class="mt-5 border-l-2 pl-4 text-sm" style="border-color: var(--ink)" x-html="summary"></div>
+
+        <!-- Vết của pipeline agent -->
+        <div x-show="trace.length" x-cloak class="term mt-5" data-testid="agent-trace">
+          <div class="term-bar"><span>pipeline agent</span><a href="/agents.html" class="ml-auto hover:text-white">chi tiết ↗</a></div>
+          <div class="term-body text-[12.5px]">
+            <template x-for="(t, i) in trace" :key="i">
+              <div><span :class="{ok: 'ok', error: 'err', running: 'warn', skip: 'dim'}[t.status]" x-text="{ok: '✓', error: '✗', running: '›', skip: '–'}[t.status]"></span>
+                <span class="hl" x-text="t.agent.padEnd(12)"></span>
+                <span class="cmd" x-text="t.summary"></span>
+                <span class="dim" x-show="t.ms" x-text="' ' + (t.ms / 1000).toFixed(1) + 's'"></span>
+                <span class="dim" x-show="t.skills?.length" x-text="' · skill: ' + (t.skills || []).join(', ')"></span>
+                <span class="dim" x-show="t.lessons" x-text="' · ' + t.lessons + ' bài học'"></span></div>
+            </template>
+          </div>
+        </div>
+        <!-- Bản đồ trang của Autopilot -->
+        <div x-show="pageMap.length" x-cloak class="term mt-3">
+          <div class="term-bar"><span>bản đồ website</span><span class="ml-auto" x-text="pageMap.length + ' trang'"></span></div>
+          <div class="term-body text-[12.5px]">
+            <template x-for="p in pageMap" :key="p.path">
+              <div><span class="ok">›</span> <span class="cmd" x-text="p.path"></span>
+                <span class="dim" x-text="' ' + (p.count ?? 0) + ' phần tử'"></span>
+                <span class="warn" x-show="p.login_form"> form đăng nhập</span>
+                <span class="hl" x-show="p.after_login"> sau đăng nhập</span>
+                <span class="dim" x-show="p.links?.length" x-text="' → ' + (p.links || []).slice(0, 5).join(', ')"></span></div>
+            </template>
+          </div>
+        </div>
+        <div x-show="criteria.length" x-cloak class="mt-3">
+          <div class="label" x-text="'Độ phủ tiêu chí chấp nhận: ' + criteria.filter(c => c.covered_by.length).length + '/' + criteria.length"></div>
+          <div class="rows mt-2">
+            <template x-for="(c, i) in criteria" :key="i">
+              <div class="py-1.5 text-sm flex gap-3 items-baseline">
+                <span class="tag shrink-0" :class="c.covered_by.length ? 'tag-pass' : 'tag-fail'" x-text="c.covered_by.length ? c.covered_by.length + ' kịch bản' : 'chưa phủ'"></span>
+                <span x-text="c.text"></span>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- Mô phỏng lỗi -->
@@ -152,6 +213,7 @@
             </label>
           </template>
           <button @click="resetShop()" class="link">Khôi phục mặc định</button>
+          <button @click="loadDemoPack()" class="link" title="Bộ kịch bản viết sẵn, dùng khi AI hoặc mạng gặp sự cố">Nạp bộ kịch bản mẫu (không cần AI)</button>
         </div>
       </div>
 
@@ -162,28 +224,68 @@
             <div class="cmt">// 03 — <b>thực thi</b></div>
             <h2 class="h2 mt-3">Kịch bản<sup class="count" x-text="'[' + visible().length + ']'"></sup></h2>
           </div>
-          <label class="flex items-center gap-2 text-sm ml-2 cursor-pointer"><input type="checkbox" x-model="onlyThis"> Chỉ hệ thống đang chọn</label>
-          <label class="flex items-center gap-2 text-sm ml-2 cursor-pointer">
-            <input type="checkbox" :checked="allPicked()" :indeterminate="picked.length > 0 && !allPicked()" @change="toggleAll($event.target.checked)">
-            Chọn tất cả</label>
           <div class="ml-auto flex items-center gap-5">
+            <button @click="reviewSelected()" class="link text-sm" :disabled="busy || !selected().length" title="Chấm điểm lại bằng luật tự động và AI">Duyệt lại</button>
             <button @click="exportCases()" class="link text-sm" :disabled="!visible().length">Excel <span class="arr">↓</span></button>
-            <button @click="run()" :disabled="busy || !runnable().length" class="btn">Thực thi <span x-text="'(' + runnable().length + ')'"></span></button>
+            <button @click="run()" :disabled="busy || !selected().length" class="btn" data-testid="run">Thực thi <span x-text="'(' + selected().length + ')'"></span></button>
           </div>
         </div>
-        <p class="small mt-2" x-text="picked.length ? ('Đã chọn ' + picked.length + ' kịch bản.') : 'Chưa chọn kịch bản: thực thi toàn bộ kịch bản của hệ thống đang chọn (API và giao diện).'"></p>
-        <div class="rows mt-4 max-h-[440px] overflow-auto scroll">
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm">
+          <select x-model="batch" @change="picked = []" class="field py-2 text-sm" style="width: auto; max-width: 340px" data-testid="batch">
+            <option value="">Tất cả các lô</option>
+            <template x-for="b in batches()" :key="b.id"><option :value="b.id" :selected="batch === b.id" x-text="b.label"></option></template>
+          </select>
+          <select x-model="catFilter" class="field py-2 text-sm" style="width: auto">
+            <option value="">Mọi nhóm</option><option value="functional">Chức năng</option><option value="security">Bảo mật</option><option value="performance">Hiệu năng</option>
+          </select>
+          <input x-model="q" class="field py-2 text-sm" style="width: 200px" placeholder="Tìm theo mã, tiêu đề">
+          <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="onlyThis"> Chỉ hệ thống đang chọn</label>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-sm">
+          <label class="flex items-center gap-2 cursor-pointer font-medium">
+            <input type="checkbox" data-testid="select-all" :checked="allPicked()" :indeterminate="selected().length > 0 && !allPicked()" @change="toggleAll($event.target.checked)">
+            <span x-text="'Chọn tất cả ' + visible().length + ' kịch bản đang hiện'"></span></label>
+          <button x-show="selected().length" @click="picked = []" class="link">Bỏ chọn</button>
+          <button x-show="selected().length" @click="removeSelected()" class="link" style="color: var(--fail)">Xoá đã chọn</button>
+          <span class="ml-auto" data-testid="selection-summary" :style="selected().length ? '' : 'color: var(--muted)'" x-text="selectionText()"></span>
+        </div>
+        <div class="rows mt-3 max-h-[460px] overflow-auto scroll">
           <template x-for="c in visible()" :key="c.id">
             <div class="row" :class="picked.includes(c.id) && 'on'">
               <div class="flex items-center gap-3">
-                <input type="checkbox" :value="c.id" x-model="picked">
+                <input type="checkbox" :value="c.id" x-model="picked" :data-testid="'pick-' + c.id">
                 <span class="mono text-[11px] whitespace-nowrap" style="color: var(--muted)" x-text="c.id"></span>
                 <span class="tag" x-text="c.type"></span>
+                <span class="tag" x-show="c.category && c.category !== 'functional'" :class="c.category === 'security' ? 'tag-high' : 'tag-warn'" x-text="catLabel[c.category]"></span>
+                <span class="tag" x-show="(c.technique || '').startsWith('rule:')" title="Sinh theo OpenAPI và dữ liệu thật, không do AI viết">theo luật</span>
+                <span class="tag" x-show="reviews[c.id]?.score != null" :class="TP.scoreClass(reviews[c.id]?.score)" :title="'Điểm duyệt: ' + reviews[c.id]?.score + '/100'" x-text="reviews[c.id]?.score"></span>
+                <span class="tag" x-show="verLabel[reviews[c.id]?.verification]" :class="verCls[reviews[c.id]?.verification]" x-text="verLabel[reviews[c.id]?.verification]"></span>
                 <button class="truncate text-left text-[15px] font-medium tracking-tight hover:underline" @click="open = open === c.id ? null : c.id" x-text="c.title"></button>
+                <span class="mono text-[11px] shrink-0" style="color: var(--muted)" x-show="(c.data_sets?.length || 0) > 1" x-text="'×' + c.data_sets.length + ' bộ dữ liệu'"></span>
                 <button @click="genData(c.id)" class="ml-auto label hover:text-black shrink-0" title="Bổ sung dữ liệu theo phân vùng tương đương và giá trị biên">+ dữ liệu</button>
               </div>
-              <div x-show="open === c.id" x-cloak class="code mt-3 max-h-72 scroll"
-                x-html="open === c.id ? TP.codeJson({data_sets: c.data_sets, steps: c.steps}) : ''"></div>
+              <template x-if="open === c.id">
+                <div class="mt-3">
+                  <template x-if="reviews[c.id]">
+                    <div class="border border-dashed p-3 mb-3 text-sm" style="border-color: var(--line-2)">
+                      <div class="flex flex-wrap items-center gap-3">
+                        <span class="label" x-text="'Duyệt: ' + (reviews[c.id].score ?? '—') + '/100 · ' + (verdictReview[reviews[c.id].verdict] || '')"></span>
+                        <span class="tag" x-show="reviews[c.id].decision" :class="reviews[c.id].decision === 'approved' ? 'tag-pass' : 'tag-fail'" x-text="reviews[c.id].decision === 'approved' ? 'người duyệt: chấp nhận' : 'người duyệt: từ chối'"></span>
+                        <span class="ml-auto slash-list">
+                          <button class="link" @click="decide(c.id, 'approved')">Chấp nhận</button>
+                          <button class="link" style="color: var(--fail)" @click="decide(c.id, 'rejected')">Từ chối</button>
+                        </span>
+                      </div>
+                      <template x-for="(it, k) in reviews[c.id].issues || []" :key="k">
+                        <div class="mt-1.5 flex gap-2 items-baseline"><span class="tag shrink-0" :class="it.severity === 'high' ? 'tag-fail' : it.severity === 'medium' ? 'tag-warn' : ''" x-text="it.severity === 'high' ? 'nặng' : it.severity === 'medium' ? 'vừa' : 'nhẹ'"></span>
+                          <span x-text="(it.step != null ? 'Bước ' + (it.step + 1) + ': ' : '') + it.message"></span></div>
+                      </template>
+                      <div x-show="!(reviews[c.id].issues || []).length" class="small mt-1">Không có vấn đề.</div>
+                    </div>
+                  </template>
+                  <div class="code max-h-72 scroll" x-html="TP.codeJson({data_sets: c.data_sets, steps: c.steps})"></div>
+                </div>
+              </template>
             </div>
           </template>
           <div x-show="!visible().length" class="py-12 text-center small">Chưa có kịch bản cho hệ thống này. Tạo kịch bản ở mục 02.</div>
@@ -196,6 +298,7 @@
           <div>
             <div class="cmt">// 04 — <b>báo cáo kết quả</b></div>
             <h2 class="h2 mt-3">Tỉ lệ đạt <span x-text="passRate() + '%'"></span></h2>
+            <p class="small mt-2" data-testid="report-scope" x-text="(report?.cases_run ?? 0) + ' kịch bản · ' + (report?.total ?? 0) + ' lượt chạy' + ((report?.total ?? 0) > (report?.cases_run ?? 0) ? ' (mỗi bộ dữ liệu là một lượt)' : '')"></p>
           </div>
           <span class="ml-auto slash-list text-sm">
             <button @click="exportReport()" class="link">Excel <span class="arr">↓</span></button>
@@ -221,7 +324,8 @@
                 <span class="tag" :class="r.status === 'passed' ? 'tag-pass' : 'tag-fail'" x-text="r.status === 'passed' ? 'pass' : 'fail'"></span>
                 <span class="mono text-[11px] whitespace-nowrap" style="color: var(--muted)" x-text="r.test_case_id"></span>
                 <span class="truncate text-[15px] font-medium tracking-tight" x-text="r.title"></span>
-                <span class="ml-auto mono text-[11px] shrink-0" style="color: var(--muted)" x-text="(r.data_set !== '-' ? r.data_set + ' · ' : '') + (r.duration_ms ?? '') + 'ms'"></span>
+                <span class="tag" x-show="r.category && r.category !== 'functional'" x-text="catLabel[r.category]"></span>
+                <span class="ml-auto mono text-[11px] shrink-0" style="color: var(--muted)" x-text="(r.perf ? 'p95 ' + r.perf.p95_ms + 'ms · ' : '') + (r.data_set !== '-' ? r.data_set + ' · ' : '') + (r.duration_ms ?? '') + 'ms'"></span>
               </div>
               <template x-if="r.status === 'failed'">
                 <div class="mt-3 pl-2 space-y-2">
@@ -243,6 +347,7 @@
                           <span class="dim" x-text="'→ ' + (r.actual_status ?? '')"></span></div>
                       </template>
                       <div class="err" x-text="'✗ ' + r.error_msg"></div>
+                      <div x-show="r.perf" class="dim" x-text="r.perf ? 'p50 ' + r.perf.p50_ms + 'ms · p95 ' + r.perf.p95_ms + 'ms · ' + r.perf.requests + ' request · lỗi ' + (r.perf.error_rate * 100).toFixed(0) + '%' : ''"></div>
                     </div></div>
                     <a x-show="r.screenshot" :href="r.screenshot" target="_blank" class="shrink-0 border hair block" title="Ảnh màn hình lúc lỗi">
                       <img :src="r.screenshot" class="w-36 h-24 object-cover object-top block" alt="Ảnh màn hình lúc lỗi">
@@ -264,6 +369,13 @@
                       </template>
                     </div>
                   </template>
+                  <details x-show="r.repro?.length" class="text-sm">
+                    <summary class="label cursor-pointer">Các bước tái hiện</summary>
+                    <ol class="mt-2 space-y-1 mono text-[12px]" style="color: var(--ink-2)">
+                      <template x-for="(line, k) in r.repro || []" :key="k"><li class="break-all" x-text="line"></li></template>
+                    </ol>
+                    <div x-show="r.curl" class="term mt-2"><div class="term-body py-2 text-[12px] break-all"><span class="ps">$</span> <span class="cmd" x-text="r.curl"></span></div></div>
+                  </details>
                   <div x-show="r.pending" class="flex gap-3 items-center text-sm">
                     <span class="tag"><span class="spin" style="border-color: var(--line-2); border-top-color: var(--ink); width: 9px; height: 9px; margin-right: 6px"></span>đang phân tích</span>
                     <span class="small">Đang xác định nguyên nhân…</span>
@@ -323,6 +435,13 @@ function lab() {
     flags: {}, cases: [], reqs: [], picked: [], onlyThis: true, report: null, open: null,
     summary: '', busy: false, busyMsg: '', error: '', toast: '', analyzing: 0,
     needLogin: false, loginUser: '', loginPass: '', useDemo: true, mock: false,
+    batch: '', catFilter: '', q: '', categories: ['functional'], authorized: false, reviews: {}, trace: [], criteria: [],
+    pageMap: [], flow: '', pathsText: '',
+    catLabel: {functional: 'chức năng', security: 'bảo mật', performance: 'hiệu năng'},
+    verdictReview: {approve: 'đạt', needs_fix: 'cần sửa', reject: 'không đạt'},
+    verify: true, plan: null, economy: true, reuse: true,
+    verLabel: {passed: 'chạy thử đạt', app_bug: 'lỗi ứng dụng', test_broken: 'kịch bản lỗi', flaky: 'không ổn định'},
+    verCls: {passed: 'tag-pass', app_bug: 'tag-fail', test_broken: 'tag-warn', flaky: 'tag-warn'},
     verdictLabel: {app_bug: 'lỗi ứng dụng', test_broken: 'lỗi kịch bản', flaky: 'không ổn định'},
     verdictCls: {app_bug: 'tag-solid-fail', test_broken: 'tag-solid-warn', flaky: 'tag-solid-ink'},
     flagLabel: {wrong_total: 'Sai tổng tiền', allow_empty_email: 'Bỏ kiểm tra email', ignore_stock: 'Bỏ kiểm tra tồn kho', ui_v2: 'Giao diện v2'},
@@ -353,24 +472,70 @@ function lab() {
         {label: 'Lỗi kịch bản', value: this.verdictCount('test_broken') + this.verdictCount('flaky'), color: 'var(--warn)'},
       ];
     },
-    usePreset(p) { this.url = p.url; this.view = p.view || ''; this.sample = p.sample; this.reqText = ''; this.inspect(); },
+    // Chạy nền và cập nhật tiến độ từng agent cho tới khi xong
+    async job(path, body) {
+      const {job_id} = await this.post(path, body);
+      this.trace = [];
+      for (;;) {
+        await new Promise(r => setTimeout(r, 700));
+        const j = await TP.api('/api/ai/jobs/' + job_id);
+        this.trace = j.trace;
+        const cur = j.trace.find(t => t.status === 'running');
+        if (cur) this.busyMsg = cur.agent + ': ' + cur.summary;
+        if (j.status === 'done') return j.result;
+        if (j.status === 'error') throw new Error(j.error);
+      }
+    },
+    usePreset(p) { this.url = p.url; this.view = p.view || ''; this.sample = p.sample; this.reqText = ''; this.authorized = false; this.inspect(); },
     previewUrl() { return this.view || this.url; },
     host(u) { try { return new URL(u).host; } catch { return ''; } },
+    reqMap() {
+      if (this._reqFor !== this.reqs) { this._reqFor = this.reqs; this._reqIdx = Object.fromEntries(this.reqs.map(x => ['REQ-' + x.id, x])); }
+      return this._reqIdx;
+    },
     // Kịch bản thuộc hệ thống nào: lấy từ nội dung yêu cầu "[url] ..." hoặc "[Autopilot] url"
     caseHost(c) {
-      const r = this.reqs.find(x => 'REQ-' + x.id === c.requirement_id);
+      const r = this.reqMap()[c.requirement_id];
       const m = r && (r.text.match(/^\[Autopilot\]\s+(\S+)/) || r.text.match(/^\[(https?:[^\]]+)\]/));
       return this.host(m ? m[1] : shopUrl);
     },
-    visible() { return this.onlyThis ? this.cases.filter(c => this.caseHost(c) === this.host(this.url)) : this.cases; },
+    hostCases() { return this.onlyThis ? this.cases.filter(c => this.caseHost(c) === this.host(this.url)) : this.cases; },
+    visible() {
+      const q = this.q.trim().toLowerCase();
+      return this.hostCases().filter(c => (!this.batch || c.requirement_id === this.batch)
+        && (!this.catFilter || (c.category || 'functional') === this.catFilter)
+        && (!q || c.id.toLowerCase().includes(q) || c.title.toLowerCase().includes(q)));
+    },
+    // Thực thi đúng những dòng đang tick VÀ đang nhìn thấy: không có kịch bản nào được chạy ngầm
+    selected() { const p = new Set(this.picked); return this.visible().filter(c => p.has(c.id)); },
     allPicked() { const v = this.visible(); return v.length > 0 && v.every(c => this.picked.includes(c.id)); },
-    toggleAll(on) { this.picked = on ? this.visible().map(c => c.id) : []; },
-    runnable() { return this.picked.length ? this.cases.filter(c => this.picked.includes(c.id)) : this.visible(); },
+    toggleAll(on) {
+      const ids = this.visible().map(c => c.id);
+      this.picked = on ? [...new Set([...this.picked, ...ids])] : this.picked.filter(i => !ids.includes(i));
+    },
+    runsOf(list) { return list.reduce((n, c) => n + Math.max(1, c.data_sets?.length || 0), 0); },
+    selectionText() {
+      const s = this.selected();
+      if (!s.length) return 'Chưa chọn kịch bản: tick các kịch bản cần thực thi.';
+      const runs = this.runsOf(s);
+      return 'Đã chọn ' + s.length + ' kịch bản' + (runs > s.length ? ' → ' + runs + ' lượt chạy (mỗi bộ dữ liệu là một lượt)' : '') + '.';
+    },
+    batches() {
+      const by = {};
+      for (const c of this.hostCases()) { const k = c.requirement_id || '—'; (by[k] = by[k] || []).push(c); }
+      return Object.entries(by).sort((a, b) => (+(b[0].split('-')[1]) || 0) - (+(a[0].split('-')[1]) || 0)).map(([id, list]) => {
+        const r = this.reqs.find(x => 'REQ-' + x.id === id);
+        const text = (r?.text || '').replace(/^\[[^\]]*\]\s*/, '').replace(/\s+/g, ' ').slice(0, 38);
+        return {id, label: id + ' · ' + list.length + ' · ' + text};
+      });
+    },
+    // Sau khi tạo: chỉ hiện đúng lô mới và tick các kịch bản của lô đó, thấy gì chạy nấy
+    focusBatch(reqId, ids) { this.batch = reqId ? 'REQ-' + reqId : ''; this.catFilter = ''; this.q = ''; this.picked = ids; },
     verdictCount(v) { return (this.report?.results || []).filter(r => r.ai_analysis?.verdict === v).length; },
     passRate() { return this.report?.total ? Math.round(this.report.passed / this.report.total * 100) : 0; },
     async loadCases() {
-      const [c, r] = await Promise.all([fetch('/api/test-cases'), fetch('/api/ai/requirements')]);
-      this.cases = await c.json(); this.reqs = await r.json();
+      const [c, r, v] = await Promise.all([fetch('/api/test-cases'), fetch('/api/ai/requirements'), fetch('/api/quality/reviews')]);
+      this.cases = await c.json(); this.reqs = await r.json(); this.reviews = await v.json();
       TP.setStatus('page', this.visible().length + ' kịch bản · ' + this.host(this.url));
     },
     flash(m) { this.toast = m; setTimeout(() => { if (this.toast === m) this.toast = ''; }, 3500); },
@@ -382,13 +547,13 @@ function lab() {
     },
     async post(url, body) {
       const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
-      const data = await r.json();
-      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || 'HTTP ' + r.status));
       return data;
     },
     inspect() {
       return this.call('testpilot inspect …', async () => {
-        this.report = null; this.picked = []; this.summary = '';
+        this.report = null; this.picked = []; this.summary = ''; this.batch = ''; this.trace = []; this.criteria = []; this.pageMap = [];
         const r = await fetch('/api/ai/inspect?url=' + encodeURIComponent(this.url.trim()));
         const data = await r.json();
         if (!r.ok) { this.info = null; throw new Error(data.detail); }
@@ -399,23 +564,35 @@ function lab() {
       });
     },
     generate() {
-      const eta = this.count >= 50 ? ' · khoảng ' + Math.ceil(this.count / 15) + ' phút' : '';
+      const eta = this.count >= 50 && !this.economy ? ' · khoảng ' + Math.ceil(this.count / 15) + ' phút' : '';
       return this.call('testpilot generate' + (this.count ? ' --count ' + this.count : '') + eta + ' …', async () => {
-        const r = await this.post('/api/ai/generate', {text: this.reqText, url: this.url, count: this.count || null});
-        this.summary = `Đã tạo <b>${r.ids.length}</b> kịch bản kiểm thử` + (r.openapi_found ? ' dựa trên tài liệu OpenAPI của hệ thống.' :
-          '. Hệ thống không có tài liệu OpenAPI nên đường dẫn API được suy luận từ yêu cầu; nên rà soát trước khi thực thi.');
-        this.picked = r.ids; await this.loadCases();
+        const r = await this.job('/api/ai/jobs/generate', {text: this.reqText, url: this.url, count: this.count || null,
+          categories: this.categories, authorized: this.authorized, verify: this.verify, economy: this.economy, reuse: this.reuse});
+        const rules = (r.ids || []).filter(i => /^TC-[0-9A-F]{4}X-/.test(i)).length;
+        const rv = Object.values(r.reviews || {});
+        const ok = rv.filter(x => x.verdict === 'approve').length;
+        this.summary = `Đã tạo <b>${r.ids.length}</b> kịch bản kiểm thử` + (rules ? ` (<b>${r.ids.length - rules}</b> do AI viết hoặc dò tự động, <b>${rules}</b> sinh theo luật)` : '') + (r.openapi_found ? ' dựa trên tài liệu OpenAPI của hệ thống.' :
+          '. Hệ thống không có tài liệu OpenAPI nên đường dẫn API được suy luận từ yêu cầu; nên rà soát trước khi thực thi.')
+          + (rv.length ? ` Agent duyệt: <b>${ok}/${rv.length}</b> đạt.` : '')
+          + (r.plan?.suggest?.length ? ` Lead gợi ý thêm nhóm: <b>${r.plan.suggest.map(s => TP.esc(this.catLabel[s] || s)).join(', ')}</b>.` : '')
+          + (r.warnings?.length ? `<br><span class="small">${r.warnings.map(TP.esc).join('<br>')}</span>` : '');
+        this.trace = r.trace || []; this.criteria = r.criteria || []; this.pageMap = [];
+        await this.loadCases(); this.focusBatch(r.requirement_id, this.readyIds(r.ids));
       });
     },
+    // Kịch bản còn lỗi sau khi chạy thử không được tick sẵn; vẫn hiện để người dùng xem và quyết định
+    readyIds(ids) { return ids.filter(i => this.reviews[i]?.verification !== 'test_broken'); },
     autopilot() {
       return this.call('testpilot explore … (1–2 phút)', async () => {
         const demo = this.needLogin && this.useDemo && this.info?.demo_account?.available;
-        const r = await this.post('/api/ai/autopilot', {url: this.url, use_demo_account: !!demo,
-          username: this.needLogin && !demo ? this.loginUser : null, password: this.needLogin && !demo ? this.loginPass : null});
-        this.summary = `<b>Tổng quan hệ thống.</b> ${r.app_summary || '—'}<br><span class="small">Đã khảo sát ${r.pages.length} trang`
+        const r = await this.job('/api/ai/jobs/autopilot', {url: this.url, use_demo_account: !!demo, verify: this.verify, authorized: this.authorized,
+          username: this.needLogin && !demo ? this.loginUser : null, password: this.needLogin && !demo ? this.loginPass : null,
+          flow: this.flow, paths: this.pathsText.split('\n').map(s => s.trim()).filter(Boolean)});
+        this.summary = `<b>Tổng quan hệ thống.</b> ${TP.esc(r.app_summary || '—')}<br><span class="small">Đã khảo sát ${r.pages.length} trang`
           + (r.openapi_found ? ' và tài liệu OpenAPI' : '') + `, đề xuất ${r.test_cases.length} kịch bản.`
-          + (r.warnings?.length ? ` ${r.warnings.length} kịch bản bị loại do không đúng định dạng.` : '') + '</span>';
-        this.picked = r.test_cases.map(t => t.id); await this.loadCases();
+          + (r.warnings?.length ? ` ${r.warnings.length} cảnh báo.` : '') + '</span>';
+        this.trace = r.trace || []; this.pageMap = r.pages || []; this.criteria = [];
+        await this.loadCases(); this.focusBatch(r.requirement_id, this.readyIds(r.test_cases.map(t => t.id)));
       });
     },
     genData(id) {
@@ -425,10 +602,14 @@ function lab() {
       });
     },
     async run() {
-      await this.call('testpilot run --cases ' + this.runnable().length + ' …', async () => {
-        const ids = this.runnable().map(c => c.id);
+      const ids = this.selected().map(c => c.id);
+      if (!ids.length) { this.error = 'Chưa chọn kịch bản nào để thực thi.'; return; }
+      await this.call('testpilot run --cases ' + ids.length + ' …', async () => {
+        const demo = this.needLogin && this.useDemo && this.info?.demo_account?.available;
         // Hiện kết quả ngay; phân loại lỗi chạy sau, song song theo lô
-        this.report = await this.post('/api/ai/run', {test_case_ids: ids, url: this.url, classify: false});
+        this.report = await this.post('/api/ai/run', {test_case_ids: ids, url: this.url, classify: false, authorized: this.authorized,
+          use_demo_account: !!demo, username: this.needLogin && !demo ? this.loginUser || null : null,
+          password: this.needLogin && !demo ? this.loginPass || null : null});
         if (this.info?.demo_shop) this.$refs.site.src = this.previewUrl();
       });
       if (this.report) return this.classifyReport();   // fullAuto chờ phân tích xong mới xuất báo cáo
@@ -436,7 +617,7 @@ function lab() {
     async fullAuto() {
       // Khám phá → tạo kịch bản → thực thi → phân tích → tải báo cáo
       await this.autopilot();
-      if (this.error || !this.picked.length) return;
+      if (this.error || !this.selected().length) return;
       await this.run();
       if (this.report) { await this.exportReport(); this.flash('Hoàn tất: đã thực thi ' + this.report.total + ' lượt và tải báo cáo Excel.'); }
     },
@@ -470,12 +651,49 @@ function lab() {
       await Promise.all([worker(), worker(), worker()]);
       TP.refreshStatus();
     },
+    async reviewSelected() {
+      const ids = this.selected().map(c => c.id);
+      await this.call('testpilot review --cases ' + ids.length + ' …', async () => {
+        const r = await this.post('/api/quality/review', {ids, url: this.url, use_ai: true});
+        if (r.criteria?.length) this.criteria = r.criteria;
+        await this.loadCases();
+        const scores = Object.values(r.reviews);
+        this.flash('Đã duyệt ' + scores.length + ' kịch bản: ' + scores.filter(x => x.verdict === 'approve').length + ' đạt.' + (r.warning ? ' ' + r.warning : ''));
+      });
+    },
+    async decide(id, decision) {
+      let reason = '';
+      if (decision === 'rejected') {
+        reason = prompt('Lý do từ chối (trở thành bài học cho lần sinh sau, sau khi được duyệt):') ?? null;
+        if (reason === null) return;
+      }
+      try {
+        await this.post('/api/quality/review/' + encodeURIComponent(id) + '/decision', {decision, reason});
+        this.reviews = await (await fetch('/api/quality/reviews')).json();
+        this.flash(decision === 'approved' ? 'Đã chấp nhận ' + id + '.' : 'Đã từ chối ' + id + '.');
+      } catch (e) { this.error = e.message; }
+    },
+    async removeSelected() {
+      const ids = this.selected().map(c => c.id);
+      if (!confirm('Xoá ' + ids.length + ' kịch bản đã chọn?')) return;
+      await this.post('/api/test-cases/bulk-delete', {ids});
+      this.picked = this.picked.filter(i => !ids.includes(i)); await this.loadCases();
+      this.flash('Đã xoá ' + ids.length + ' kịch bản.');
+    },
+    loadDemoPack() {
+      return this.call('testpilot demo-pack …', async () => {
+        const r = await this.post('/api/quality/demo-pack');
+        await this.loadCases(); this.focusBatch(r.requirement_id, r.ids);
+        this.summary = `Đã nạp <b>${r.ids.length}</b> kịch bản từ bộ mẫu viết sẵn (không do AI sinh trong lượt này).`;
+        this.trace = []; this.criteria = []; this.pageMap = [];
+      });
+    },
     exportCases() {
-      const ids = (this.picked.length ? this.picked : this.visible().map(c => c.id)).join(',');
+      const ids = (this.selected().length ? this.selected() : this.visible()).map(c => c.id).join(',');
       return this.call('testpilot export --xlsx …', async () => { await TP.download('/api/export/test-cases.xlsx?ids=' + encodeURIComponent(ids)); this.flash('Đã xuất kịch bản kiểm thử (Excel).'); });
     },
     exportReport() {
-      return this.call('testpilot report --xlsx …', async () => { await TP.download('/api/export/report.xlsx', this.report); this.flash('Đã xuất báo cáo kết quả (Excel).'); });
+      return this.call('testpilot report --xlsx …', async () => { await TP.download('/api/export/report.xlsx', {...this.report, results: this.report.results.map(({screenshot, ...r}) => r)}); this.flash('Đã xuất báo cáo kết quả (Excel).'); });
     },
     async toggle(name, on) {
       await fetch('/api/shop/bugs/' + name, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: on})});

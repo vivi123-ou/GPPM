@@ -8,8 +8,24 @@ async function load() {
   renderProducts();
   renderCart();
   const flags = await (await fetch('/api/shop/bugs')).json();
-  if (flags.ui_v2) document.body.classList.add('v2');
+  if (flags.ui_v2) applyUiV2();
   await loadAccount();
+}
+
+// Bản giao diện mới: đổi màu, đổi data-testid và chữ trên nút, giả lập một lần phát hành làm gãy locator cũ
+function applyUiV2() {
+  document.body.classList.add('v2');
+  const renamed = { 'checkout-button': 'btn-place-order', 'customer-name': 'input-fullname', 'cart-button': 'btn-open-cart',
+                    'email': 'input-email', 'address': 'input-shipping-address', 'phone': 'input-phone' };
+  for (const [from, to] of Object.entries(renamed)) {
+    document.querySelector(`[data-testid="${from}"]`)?.setAttribute('data-testid', to);
+  }
+  document.querySelectorAll('[data-testid^="add-"]').forEach(button => {
+    button.dataset.testid = button.dataset.testid.replace(/^add-/, 'buy-');
+    button.textContent = 'Chọn mua';
+  });
+  const checkout = document.querySelector('[data-testid="btn-place-order"]');
+  if (checkout) checkout.textContent = 'Đặt hàng ngay';
 }
 
 async function loadAccount() {

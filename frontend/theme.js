@@ -1,9 +1,26 @@
 // TestPilot – thanh điều hướng + tiện ích dùng chung cho các trang
 (function () {
+  // Token truy cập (khi server đặt TESTPILOT_TOKEN): lưu trên trình duyệt, tự gắn vào mọi lời gọi API
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async (url, opts = {}) => {
+    const token = localStorage.getItem('tp-token');
+    const withToken = token ? { ...opts, headers: { ...(opts.headers || {}), 'X-TestPilot-Token': token } } : opts;
+    const r = await nativeFetch(url, withToken);
+    if (r.status === 401 && String(url).startsWith('/api/') && !String(url).startsWith('/api/shop')) {
+      const entered = prompt('Máy chủ yêu cầu token truy cập TestPilot:');
+      if (entered) { localStorage.setItem('tp-token', entered); return nativeFetch(url, { ...opts, headers: { ...(opts.headers || {}), 'X-TestPilot-Token': entered } }); }
+    }
+    return r;
+  };
+
   const LINKS = [
     { href: '/', label: 'Tổng quan' },
     { href: '/ai.html', label: 'Kiểm thử' },
-    { href: '/shop', label: 'Demo Shop', external: true },
+    { href: '/quality.html', label: 'Chất lượng' },
+    { href: '/agents.html', label: 'Agents' },
+    { href: '/maintenance.html', label: 'Bảo trì' },
+    { href: '/handbook.html', label: 'Tài liệu' },
+    { href: '/shop', label: 'Shop', external: true },
     { href: '/docs', label: 'API', external: true },
   ];
 
@@ -17,7 +34,7 @@
           <a href="/" class="wordmark">TestPilot</a>
           <div class="hidden md:flex items-center gap-10 label">
             <span id="tp-ai-status"><span class="dot idle"></span>Đang kết nối</span>
-            <span class="hidden lg:inline">Kiểm thử tự động · v0.1.0</span>
+            <span class="hidden xl:inline">Kiểm thử tự động · v1.0</span>
           </div>
           <div class="navlinks">
             ${LINKS.map((l, i) => `${i ? '<span class="sep">/</span>' : ''}<a class="${l.href === path ? 'active' : ''}"
@@ -79,7 +96,15 @@
       return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
     },
     pad(n, w = 2) { return String(n).padStart(w, '0'); },
-    esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); },
+    esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
+    // Gọi API JSON: trả về dữ liệu, lỗi thì ném Error với thông báo của máy chủ
+    async api(url, method = 'GET', body) {
+      const r = await fetch(url, body !== undefined ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || ('HTTP ' + r.status)));
+      return data;
+    },
+    scoreClass(s) { return s == null ? '' : s >= 80 ? 'tag-pass' : s >= 50 ? 'tag-warn' : 'tag-fail'; },
     // JSON → bảng có số dòng + tô màu cú pháp (biến {{x}} được làm nổi)
     codeJson(obj) {
       const text = JSON.stringify(obj, null, 2) || '';

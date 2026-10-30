@@ -19,6 +19,7 @@ from ai.llm_provider import LLMProvider, get_provider
 
 TOP_K = 25
 FALLBACK_MIN_SCORE = 0.55
+AI_MIN_CONFIDENCE = 0.5      # AI không chắc thì không đề xuất: thà báo lỗi còn hơn bấm nhầm phần tử
 
 _ACTION_ROLES = {"fill": {"textbox", "searchbox", "spinbutton"},
                  "select": {"combobox", "listbox"},
@@ -48,9 +49,12 @@ def suggest_locator(step: dict, dom_snapshot: str, provider: LLMProvider | None 
             step=json.dumps(step, ensure_ascii=False), candidates=lines))
         idx = int(data.get("index", -1))
         if 0 <= idx < len(candidates):
+            confidence = _clamp(data.get("confidence"), 0.7)
+            if confidence < AI_MIN_CONFIDENCE:
+                return _none(f"AI không đủ chắc chắn ({confidence:.2f}): {data.get('reason') or ''}")
             return {"target": candidates[idx].target(),
                     "reason": str(data.get("reason") or ""),
-                    "confidence": _clamp(data.get("confidence"), 0.7),
+                    "confidence": confidence,
                     "source": "ai"}
         return _none(str(data.get("reason") or "AI không tìm thấy phần tử tương ứng."))
     except Exception as e:

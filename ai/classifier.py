@@ -31,6 +31,11 @@ def heuristic(test_case: TestCase | dict, result: dict, api_paths: list[str] | N
     err = _error_text(result).lower()
     tc_type = test_case.type if isinstance(test_case, TestCase) else test_case.get("type")
 
+    if result.get("needs_credentials"):
+        return _v("test_broken", 0.95, "Lượt chạy chưa có tài khoản thử nghiệm nên chưa thể đánh giá hệ thống.")
+    if result.get("perf") is not None:
+        return _v("app_bug", 0.85, f"Kết quả đo vượt ngưỡng: {result.get('error_msg')}.")
+
     path = ((result.get("request") or {}).get("path") or "").split("?")[0]
     if api_paths and path and result.get("actual_status") in (404, 405) \
             and not any(_path_match(p, path) for p in api_paths):
@@ -120,7 +125,7 @@ def classify_failures(items: list[tuple[TestCase | dict, dict]], api_paths: list
             blocks.append(f"### Test {n}\nTest case: {tc_json[:1800]}\nExecution result: {_compact(res, 1500)}\n"
                           f"Heuristic (may be wrong): {json.dumps(hints[i], ensure_ascii=False)}")
         try:
-            llm = provider or get_provider()
+            llm = provider or get_provider()     # lỗi hoặc hết hạn mức: rơi xuống kết quả bằng luật ở dưới
             data = llm.complete_json(prompts.CLASSIFY_SYSTEM, prompts.CLASSIFY_BATCH_USER.format(
                 context=ctx, items="\n\n".join(blocks)))
             rows = data.get("results") if isinstance(data, dict) else data

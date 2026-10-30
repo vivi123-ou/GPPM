@@ -6,10 +6,10 @@
   <title>TestPilot — Kiểm thử tự động</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/vendor/tailwind.js"></script>
   <link rel="stylesheet" href="/theme.css">
   <script src="/theme.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script defer src="/vendor/alpine.min.js"></script>
 </head>
 <body x-data="app()" x-init="load()">
   <div id="tp-nav"></div>
@@ -73,7 +73,9 @@
         placeholder="Đặt hàng hợp lệ trả về 201; tổng tiền bằng tổng (đơn giá × số lượng). Email sai định dạng bị từ chối với mã 422."></textarea>
       <div class="flex flex-wrap items-center gap-3 mt-4">
         <select x-model.number="count" class="field" style="width: auto">
-          <option :value="0">Số lượng: tự động (4–10)</option>
+          <option :value="0">Số lượng: tự động (4–12)</option>
+          <option :value="5">5 kịch bản</option>
+          <option :value="10">10 kịch bản</option>
           <option :value="20">20 kịch bản</option>
           <option :value="50">50 kịch bản</option>
           <option :value="100">100 kịch bản</option>
@@ -221,7 +223,7 @@
   <footer class="overflow-hidden" style="background: var(--ink)">
     <div class="wrap pt-10 flex flex-wrap gap-4 justify-between label" style="color: #8c8d95">
       <span class="slash-list"><span>TestPilot</span><span>Kiểm thử tự động</span><span>Apache-2.0</span></span>
-      <span class="slash-list"><span>FastAPI</span><span>Playwright</span><span>Gemini · Groq · OpenAI · Ollama</span></span>
+      <span class="slash-list"><a href="/handbook.html" class="hover:text-white">Tài liệu kỹ thuật</a><span>FastAPI</span><span>Playwright</span><span>Gemini · Groq · OpenAI · Ollama</span></span>
     </div>
     <div class="wrap"><div class="giant mt-6 -mb-[0.12em]">TestPilot</div></div>
   </footer>
@@ -260,9 +262,9 @@ function app() {
     ],
     steps: [
       {title: 'Phân tích', text: 'Đọc yêu cầu, tài liệu OpenAPI và dữ liệu thực tế; xác định luồng chính, trường hợp lỗi và giá trị biên.'},
-      {title: 'Tạo kịch bản', text: 'Kịch bản API/UI dạng JSON theo schema chung, kèm bộ dữ liệu hợp lệ và không hợp lệ.'},
+      {title: 'Tạo và duyệt', text: 'Kịch bản API, UI, bảo mật và hiệu năng theo schema chung; agent chấm điểm, tự sửa, người duyệt quyết định cuối.'},
       {title: 'Thực thi', text: 'Chạy trên hệ thống mục tiêu; mỗi lỗi được phân loại: lỗi ứng dụng, lỗi kịch bản hoặc không ổn định.'},
-      {title: 'Báo cáo', text: 'Xuất Excel, CSV, JSON cho tài liệu dự án và quy trình CI.'},
+      {title: 'Báo cáo và bảo trì', text: 'Xuất Excel, CSV, JSON kèm bước tái hiện; theo dõi yêu cầu và API thay đổi, self-healing locator.'},
     ],
     termScript: [
       '<span class="ps">$</span> <span class="cmd">testpilot generate --target shop --count 20</span>',

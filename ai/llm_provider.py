@@ -12,6 +12,7 @@ Chỉ dùng httpx (đã có trong requirements), không cần SDK riêng.
 
 from __future__ import annotations
 
+import contextvars
 import os
 import re
 import threading
@@ -40,6 +41,8 @@ MAX_RATE_WAIT = float(os.getenv("LLM_MAX_RATE_WAIT", "60"))    # giây; lâu hơ
 COOLDOWN_SECONDS = float(os.getenv("LLM_COOLDOWN", "600"))     # tạm bỏ qua provider hết hạn mức
 FALLBACK_MAX_WAIT = float(os.getenv("LLM_MAX_WAIT", "240"))    # tổng thời gian chờ tối đa cho một lần gọi
 MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "16000"))
+# Thao tác trên giao diện không được đứng vài phút vì hết hạn mức: ghi đè FALLBACK_MAX_WAIT cho lượt gọi hiện tại
+WAIT_BUDGET: contextvars.ContextVar[float | None] = contextvars.ContextVar("llm_wait_budget", default=None)
 
 
 def _retry_after(resp: httpx.Response) -> float | None:
@@ -247,7 +250,7 @@ class FallbackProvider(LLMProvider):
     def complete(self, system: str, user: str, json_mode: bool = False) -> str:
         errors: dict[int, str] = {}
         broken: set[int] = set()            # lỗi khác 429 (sai khoá, model không tồn tại...) trong lượt này
-        deadline = time.time() + FALLBACK_MAX_WAIT
+        deadline = time.time() + (WAIT_BUDGET.get() or FALLBACK_MAX_WAIT)
         while True:
             now = time.time()
             for i, p in enumerate(self.providers):

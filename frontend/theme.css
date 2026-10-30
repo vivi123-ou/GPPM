@@ -46,6 +46,9 @@ sup.count { font-family: var(--mono); font-size: .38em; font-weight: 400; letter
 .navlinks a { color: var(--ink); }
 .navlinks a:hover { color: var(--accent); }
 .navlinks .sep { color: var(--muted); margin: 0 .35em; }
+@media (max-width: 1280px) { .navlinks { font-size: 12.5px; } }
+@media (max-width: 760px) { .tp-nav .inner { height: auto; padding-top: 8px; padding-bottom: 8px; grid-template-columns: 1fr; gap: 4px; }
+  .navlinks { white-space: normal; } }
 .navlinks a.active { color: var(--accent); }
 .navlinks a.active::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 99px !important;
   background: var(--accent); margin-right: 6px; transform: translateY(-1px); }
@@ -88,6 +91,7 @@ sup.count { font-family: var(--mono); font-size: .38em; font-weight: 400; letter
 .tag-solid-warn { background: var(--warn); color: #fff; border-color: var(--warn); }
 .tag-solid-ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .tag-high { color: var(--fail); border-color: rgba(229, 55, 27, .5); }
+.tag-warn { color: var(--warn); border-color: var(--warn); }
 
 /* ---------- Ô nhập ---------- */
 .field { width: 100%; background: var(--white); border: 1px solid var(--line-2); padding: 12px 14px; font-size: 15px;
@@ -191,6 +195,31 @@ input[type=checkbox] { accent-color: var(--ink); width: 14px; height: 14px; }
 .statusbar .acc { background: var(--accent); color: #fff; margin-left: -14px; padding: 0 12px; height: 100%; display: inline-flex; align-items: center; }
 body.has-statusbar { padding-bottom: 26px; }
 .toast { bottom: 40px; }
+
+/* Tiêu đề trang phụ */
+.page-h { font-weight: 600; letter-spacing: -.05em; line-height: .95; font-size: clamp(44px, 6.5vw, 96px); }
+/* Thẻ số liệu: số giữ màu chữ, thanh đo một màu; luôn ghi công thức và mẫu số */
+.kpi { padding: 18px 20px 18px 0; }
+.kpi .v { font-size: clamp(40px, 4.2vw, 60px); font-weight: 600; letter-spacing: -.05em; line-height: .95; }
+.kpi .v.none { color: var(--muted); }
+.kpi .formula { font-size: 12.5px; line-height: 1.45; color: var(--muted); margin-top: 8px; }
+.meter-lg { height: 4px; background: var(--line); margin-top: 12px; }
+.meter-lg > div { height: 100%; background: var(--ink); transition: width .5s; }
+.handbook h1 { font-weight: 600; letter-spacing: -.04em; font-size: 40px; line-height: 1.05; margin: 0 0 18px; }
+.handbook h2 { font-weight: 600; letter-spacing: -.025em; font-size: 24px; line-height: 1.15; margin: 34px 0 10px; }
+.handbook h3 { font-weight: 600; font-size: 17px; margin: 22px 0 6px; }
+.handbook p, .handbook li { font-size: 15px; line-height: 1.65; color: var(--ink-2); }
+.handbook p { margin: 0 0 12px; }
+.handbook ul, .handbook ol { margin: 0 0 12px 20px; list-style: disc; } .handbook ol { list-style: decimal; }
+.handbook table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 8px 0 18px; }
+.handbook th { font-family: var(--mono); font-size: 10.5px; font-weight: 400; text-transform: uppercase; color: var(--muted);
+  text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--ink); }
+.handbook td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.handbook code { font-family: var(--mono); font-size: .88em; background: rgba(11, 11, 11, .07); padding: 1px 4px; }
+.handbook pre { background: #0d0e10; color: #d8d9de; padding: 14px 16px; overflow: auto; margin: 8px 0 16px; font-size: 12.5px; line-height: 1.6; }
+.handbook pre code { background: none; padding: 0; font-size: inherit; }
+.handbook a { text-decoration: underline; text-underline-offset: 3px; }
+.handbook blockquote { border-left: 2px solid var(--ink); padding-left: 14px; margin: 0 0 14px; }
 
 /* Nhãn phương thức HTTP */
 .m { font-family: var(--mono); font-size: 11px; font-weight: 500; }
