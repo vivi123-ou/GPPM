@@ -510,6 +510,7 @@ def _autopilot(body: AutopilotIn, client: str | None, on_step=None) -> dict:
     trace, t0 = Trace(on_step), time.perf_counter()
     trace.start("explorer", "Mở trình duyệt, duyệt các trang…")
     used: list[str] = []
+    llm = None
     try:
         if ai_client.USE_MOCK:
             r = ai_client.autopilot(url)
@@ -521,14 +522,15 @@ def _autopilot(body: AutopilotIn, client: str | None, on_step=None) -> dict:
             if login:
                 vault.remember(url, login["username"], login["password"])
             guidance, used, _ = skill_context("explorer", body.flow + " giao diện checkout đăng nhập", urlparse(url).netloc)
-            r = real(url, include_api=body.include_api, login=login, paths=body.paths, flow=body.flow, guidance=guidance)
+            llm = _llm_or_none()      # dùng lại kết quả AI, chờ có giới hạn, hết hạn mức thì không chờ lại ở bước sau
+            r = real(url, include_api=body.include_api, login=login, paths=body.paths, flow=body.flow, guidance=guidance, provider=llm)
     except Exception as e:
         raise HTTPException(502, f"Autopilot lỗi: {e}")
     trace.add("explorer", "ok", int((time.perf_counter() - t0) * 1000),
               f"Duyệt {len(r['pages'])} trang, đề xuất {len(r['test_cases'])} kịch bản", skills=used)
     spec = find_openapi(url)
     _save_snapshot(url, spec)
-    llm = _llm_or_none()
+    llm = llm if not ai_client.USE_MOCK else None
     reviewed = review_and_fix(r["test_cases"], body.flow, spec, llm, trace, urlparse(url).netloc, ai_review_enabled=False)
     r["test_cases"] = reviewed["cases"]
     stats = {"pages": len(r["pages"]), "produced": len(r["test_cases"])}

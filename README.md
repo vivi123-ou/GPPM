@@ -7,7 +7,7 @@
 
 TestPilot là ứng dụng hỗ trợ kiểm thử phần mềm theo yêu cầu. Người dùng nhập user story hoặc API spec, tạo test case, chạy kiểm thử API/UI và xem kết quả ngay trên dashboard. Repo cũng có **TVT MOBILE**, một cửa hàng điện thoại mẫu với dữ liệu SQLite và bug flags để thực hành, tích hợp và trình diễn luồng kiểm thử.
 
-> **Tài liệu kỹ thuật đầy đủ:** mở trang **Tài liệu** trong ứng dụng (`/handbook.html`) hoặc đọc thư mục [docs/handbook](docs/handbook). API tương tác ở `/docs`.
+> **Tài liệu kỹ thuật đầy đủ:** đọc thư mục [docs/handbook](docs/handbook). API tương tác ở `/docs`.
 
 ## Tính năng
 
@@ -57,7 +57,7 @@ backend/
   mocks/             # Dữ liệu mock cho AI
 ai/                  # Module AI (xem mục AI Model)
 tests/               # Test tự động của module AI (pytest)
-docs/handbook/       # Tài liệu kỹ thuật (hiển thị ở /handbook.html)
+docs/handbook/       # Tài liệu kỹ thuật
 docs/AI.md           # Quy ước module AI cho cả nhóm
 scripts/             # Đánh giá A/B, khởi động buổi demo
 ShopDemo/            # Demo Shop: API, trang bán hàng và tài nguyên
@@ -71,10 +71,6 @@ ShopDemo/            # Demo Shop: API, trang bán hàng và tài nguyên
 frontend/
   index.html         # Dashboard TestPilot
   ai.html            # Kiểm thử website: tạo kịch bản, tự động khám phá, thực thi, báo cáo
-  quality.html       # Số liệu chất lượng, phép đo phát hiện lỗi
-  agents.html        # Agents, skills, bài học, nhật ký pipeline
-  maintenance.html   # Yêu cầu và API thay đổi, DOM và locator, self-healing
-  handbook.html      # Tài liệu kỹ thuật
   vendor/            # Tailwind, Alpine, marked lưu sẵn: chạy được khi không có Internet
   theme.css, theme.js # Giao diện dùng chung, thanh điều hướng
 README.md

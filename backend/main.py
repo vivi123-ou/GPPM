@@ -43,9 +43,6 @@ app.mount(
     name="demo-shop-assets",
 )
 
-# Tài liệu kỹ thuật hiển thị trong trang /handbook.html
-app.mount("/handbook-files", StaticFiles(directory=Path(__file__).resolve().parent.parent / "docs" / "handbook"), name="handbook")
-
 class RequirementIn(BaseModel):
     text: str
 

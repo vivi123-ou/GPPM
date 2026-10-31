@@ -12,5 +12,11 @@ if ($Fresh -and (Test-Path demo.db)) {
 $env:TESTPILOT_DB = (Join-Path (Get-Location) "demo.db")
 $env:DEMO_SHOP_URL = "http://127.0.0.1:$Port"
 $env:PYTHONIOENCODING = "utf-8"
+# Buổi demo ưu tiên Groq: đo thực tế nhanh hơn Gemini nhiều và ít bị hết hạn mức ngày hơn. Không sửa .env.
+if (-not $env:LLM_PROVIDER) {
+    $env:LLM_PROVIDER = "groq"
+    $env:LLM_MODEL = "openai/gpt-oss-120b"
+    $env:LLM_FALLBACK = "groq:openai/gpt-oss-20b,groq:qwen/qwen3.8-27b,gemini,openai"
+}
 Write-Host "Mo trinh duyet: http://127.0.0.1:$Port/ai.html"
 & .\.venv\Scripts\python -m uvicorn backend.main:app --host 127.0.0.1 --port $Port

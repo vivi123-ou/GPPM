@@ -9,20 +9,26 @@
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 from ai.llm_provider import WAIT_BUDGET, LLMError
 
 CACHE_DAYS = 7
 WAIT_SECONDS = 60.0
+HARD_LIMIT_SECONDS = 120.0     # trần tuyệt đối cho một lần gọi, kể cả khi nhà cung cấp treo kết nối
 
 
 class CachedLLM:
-    def __init__(self, llm, read_cache: bool = True, wait_seconds: float = WAIT_SECONDS):
+    def __init__(self, llm, read_cache: bool = True, wait_seconds: float = WAIT_SECONDS,
+                 hard_limit: float = HARD_LIMIT_SECONDS):
         self.llm = llm
         self.read_cache = read_cache
         self.wait_seconds = wait_seconds
+        self.hard_limit = hard_limit
         self.hits = 0
         self.misses = 0
         self.down: str | None = None       # lý do AI không dùng được trong lượt này
@@ -43,13 +49,20 @@ class CachedLLM:
         if self.down:
             raise LLMError(f"AI không khả dụng trong lượt này: {self.down}")
         token = WAIT_BUDGET.set(self.wait_seconds)
+        ctx = contextvars.copy_context()
+        WAIT_BUDGET.reset(token)
+        # Chạy ở luồng riêng để có trần thời gian thật: timeout của HTTP không chặn được kết nối nhỏ giọt
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
-            return fn()
+            return pool.submit(ctx.run, fn).result(timeout=self.hard_limit)
+        except FutureTimeout:
+            self.down = f"không phản hồi sau {self.hard_limit:.0f} giây"
+            raise LLMError(f"AI {self.down}") from None
         except LLMError as e:
             self.down = str(e)[:160]
             raise
         finally:
-            WAIT_BUDGET.reset(token)
+            pool.shutdown(wait=False)
 
     def complete(self, system: str, user: str, json_mode: bool = False) -> str:
         return self._guarded(lambda: self.llm.complete(system, user, json_mode))

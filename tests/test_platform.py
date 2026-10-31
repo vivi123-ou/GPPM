@@ -984,3 +984,39 @@ def test_small_count_uses_ai_only_when_ai_works(tmp_path, monkeypatch):
     llm = _Scripted({"test_cases": [case] * 1}, {"criteria": [], "reviews": []})
     r = agents.generate_pipeline(REQ, "http://x/shop", count=5, spec=_shop_spec(), provider=llm, economy=True, items=ITEMS, lead=False, auto_fix=False)
     assert not any(t["agent"] == "expander" for t in r["trace"]) and not any("X-" in c.id for c in r["cases"])
+
+
+def test_hung_llm_call_is_abandoned_and_not_retried(tmp_path, monkeypatch):
+    import time as _t
+    from ai.llm_cache import CachedLLM
+    from ai.llm_provider import LLMError, WAIT_BUDGET
+    from backend import db
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "h.db")
+    db.init_db()
+    seen = []
+
+    class Hung:
+        name, model = "h", "m"
+
+        def complete_json(self, s, u):
+            seen.append(WAIT_BUDGET.get())
+            _t.sleep(1.5)
+            return {"late": 1}
+    c = CachedLLM(Hung(), wait_seconds=9, hard_limit=0.1)
+    t0 = _t.time()
+    with pytest.raises(LLMError):
+        c.complete_json("s", "1")
+    with pytest.raises(LLMError):
+        c.complete_json("s", "2")
+    assert _t.time() - t0 < 1 and seen == [9]     # không chờ hết, không gọi lại, giới hạn chờ vẫn tới được luồng gọi
+
+
+def test_frontend_is_revalidated_and_navigation_has_only_main_tabs(client):
+    r = client.get("/theme.js")
+    assert r.headers["cache-control"] == "no-cache"
+    for removed in ("quality", "agents", "maintenance", "handbook"):
+        page = f"/{removed}.html"
+        assert page not in r.text and client.get(page).status_code == 404
+        assert page not in client.get("/").text and page not in client.get("/ai.html").text
+    assert client.get("/handbook-files/01-tong-quan.md").status_code == 404
+    assert 'src="/theme.js?v=' in client.get("/ai.html").text and 'src="/theme.js?v=' in client.get("/").text

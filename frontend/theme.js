@@ -16,10 +16,6 @@
   const LINKS = [
     { href: '/', label: 'Tổng quan' },
     { href: '/ai.html', label: 'Kiểm thử' },
-    { href: '/quality.html', label: 'Chất lượng' },
-    { href: '/agents.html', label: 'Agents' },
-    { href: '/maintenance.html', label: 'Bảo trì' },
-    { href: '/handbook.html', label: 'Tài liệu' },
     { href: '/shop', label: 'Shop', external: true },
     { href: '/docs', label: 'API', external: true },
   ];

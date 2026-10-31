@@ -114,6 +114,9 @@ async def security_middleware(request: Request, call_next):
                                 status_code=429, headers={"Retry-After": "60"})
 
     response = await call_next(request)
+    if not path.startswith(("/api/", "/shop-assets/images/")):
+        # Giao diện đổi là phải thấy ngay: trình duyệt hỏi lại máy chủ thay vì dùng bản đã lưu
+        response.headers.setdefault("Cache-Control", "no-cache")
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")

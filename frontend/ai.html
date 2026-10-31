@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="/vendor/tailwind.js"></script>
-  <link rel="stylesheet" href="/theme.css">
-  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/theme.css?v=2">
+  <script src="/theme.js?v=2"></script>
   <script defer src="/vendor/alpine.min.js"></script>
 </head>
 <body x-data="lab()" x-init="init()">
@@ -162,7 +162,7 @@
 
         <!-- Vết của pipeline agent -->
         <div x-show="trace.length" x-cloak class="term mt-5" data-testid="agent-trace">
-          <div class="term-bar"><span>pipeline agent</span><a href="/agents.html" class="ml-auto hover:text-white">chi tiết ↗</a></div>
+          <div class="term-bar"><span>pipeline agent</span></div>
           <div class="term-body text-[12.5px]">
             <template x-for="(t, i) in trace" :key="i">
               <div><span :class="{ok: 'ok', error: 'err', running: 'warn', skip: 'dim'}[t.status]" x-text="{ok: '✓', error: '✗', running: '›', skip: '–'}[t.status]"></span>
